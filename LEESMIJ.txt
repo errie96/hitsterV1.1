@@ -33,9 +33,26 @@ Exact jaartal raden (aan/uit in de lobby):
   wie het exacte jaartal heeft wint de kaart en krijgt extra punten.
   Je kunt titel & artiest en jaartal los van elkaar aan- of uitzetten.
 
+Fiches:
+  Je begint met 2 fiches (in teams: het team). Je verdient er 1 met een goed
+  jaartal of met een goede titel & artiest (maximaal 5). Met 3 fiches kun je een
+  ander nummer laten kiezen; dat kost die 3 fiches. Dat kan alleen voordat je
+  je keuze hebt ingediend. In teams kan alleen de speler aan zet dit doen, en
+  die blijft daarna aan zet. De host zoekt het nieuwe nummer automatisch.
+
 Sessieherstel:
   Wie de pagina ververst of even geen verbinding heeft, komt terug waar hij was
   (ook de host). Via "Spel verlaten" / "Spel afsluiten" ruim je de sessie op.
+
+Terugkomen na wegklikken:
+  - Verversen, scherm weer aan, internet terug: de pagina sluit meteen weer aan.
+  - Tabblad dicht en later opnieuw geopend: de speler komt terug (de sessie
+    wordt ook in de browser zelf bewaard).
+  - Op een ander apparaat of in de geïnstalleerde app: vul dezelfde naam en PIN
+    in. Zit die naam nog als "verbonden" in het spel, dan vraagt de pagina of jij
+    het bent en neem je de plek over (ook na het einde van het spel).
+  - Spelers die uit de lobby wegvallen blijven 10 minuten staan (als "weg").
+    De host kan spelers met het kruisje uit de lobby halen.
 
 Online zetten via Render:
   1. Zet de INHOUD van deze map (server.js, package.json, render.yaml, public/)

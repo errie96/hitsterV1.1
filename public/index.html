@@ -522,6 +522,10 @@
     .host-tl-head { font-weight: 800; font-size: 0.85rem; color: var(--tc); }
     .host-board-legend { font-size: 0.74rem; color: var(--text-dim); text-align: left; }
 
+    .chip-x { margin-left: 4px; padding: 0 3px; color: var(--text-dim); cursor: pointer; font-weight: 800; }
+    .chip-x:hover { color: #ff7ab8; }
+    .rules-note { font-size: 0.78rem; color: var(--text-dim); text-align: left; line-height: 1.45; background: #07070d; border: 1px solid var(--card-border); border-radius: 12px; padding: 8px 10px; }
+
     .hidden { display: none !important; }
 
     @media (prefers-reduced-motion: reduce) {
@@ -563,6 +567,7 @@
     <input type="text" id="player-name" placeholder="Jouw Naam (bijv. Erjan)" maxlength="15">
     <input type="tel" id="room-pin" placeholder="4-cijferige PIN" maxlength="4">
     <button class="btn" onclick="joinRoom()">Kamer Binnengaan</button>
+    <p class="spotify-info">Per ongeluk weggeklikt? Vul dezelfde naam en PIN in, dan ben je terug in het spel.</p>
     <button class="btn btn-secondary" onclick="showView('view-menu')">Terug</button>
   </div>
 
@@ -602,6 +607,8 @@
       <input type="checkbox" id="guess-year-check" checked onchange="pushSettings()">
       <span>Exact jaartal raden toestaan. Het spel controleert dit zelf. Goed = +1 fiche.</span>
     </label>
+
+    <p class="rules-note">🪙 <strong>Fiches:</strong> je begint met 2. Je verdient er 1 met een goed jaartal of een goede titel &amp; artiest. Met 3 fiches kun je een ander nummer laten kiezen (kost 3 fiches).</p>
 
     <label style="font-size: 0.8rem; color: var(--text-dim); text-align: left;">Kies Hitster Editie / Categorie:</label>
     <select id="category-select" onchange="pushSettings()">
@@ -778,6 +785,8 @@
       <input type="text" id="guess-artist" placeholder="Artiest" maxlength="80" autocomplete="off">
     </div>
 
+    <button id="btn-new-track" class="btn btn-secondary small-btn hidden" onclick="requestNewTrack()">🔄 Ander nummer kiezen</button>
+
     <div style="text-align: left;">
       <div id="pg-timeline-label" style="font-size: 0.8rem; color: var(--text-dim); font-weight: bold;">Jouw Hitster Tijdlijn</div>
       <p id="pg-timeline-hint" style="font-size: 0.75rem; color: var(--text-dim);"></p>
@@ -809,6 +818,7 @@
     let pendingAutoStart = false;
     let hostBusy = false;
     let hostAnimRound = null;
+    let hostSwapHandled = null;   // voor welk nummer het verzoek om een ander nummer al is opgepakt
 
     // Na het inloggen bij Spotify komt het popup-venster hier terug; dat venster mag geen spel hervatten
     const IS_AUTH_REDIRECT = /[?&](code|error)=/.test(window.location.search);
@@ -871,13 +881,41 @@
       setTimeout(() => { window.location.href = window.location.pathname; }, delay || 0);
     }
 
-    socket.on('connect', () => {
-      $('conn-bar').classList.add('hidden');
-      if (IS_AUTH_REDIRECT) return;
+    let replaced = false;   // dit tabblad is overgenomen door een ander tabblad of apparaat
+    function sendResume() {
       const s = loadSession();
       if (!s) return;
       if (s.role === 'host') socket.emit('resume_host', { pin: s.pin, hostToken: s.hostToken });
       else socket.emit('resume_player', { pin: s.pin, playerId: s.playerId });
+    }
+
+    socket.on('connect', () => {
+      $('conn-bar').classList.add('hidden');
+      if (IS_AUTH_REDIRECT || replaced) return;
+      sendResume();
+    });
+
+    // Weer terug in de app (scherm weer aan, tabblad weer actief, internet terug): meteen opnieuw aansluiten
+    // in plaats van te wachten tot de verbinding vanzelf opmerkt dat hij dood is.
+    function resumeNow() {
+      if (IS_AUTH_REDIRECT || replaced || !loadSession()) return;
+      if (!socket.connected) { socket.connect(); return; }
+      sendResume();
+    }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') resumeNow(); });
+    window.addEventListener('online', resumeNow);
+    window.addEventListener('pageshow', (e) => { if (e.persisted) resumeNow(); });
+
+    socket.on('replaced', () => {
+      replaced = true;
+      ps = null; hs = null;
+      showView('view-menu');
+      showMenuNotice('Je speelt nu op een ander tabblad of apparaat. Ververs deze pagina als je hier verder wilt.');
+    });
+    socket.on('removed', () => {
+      clearSession();
+      try { sessionStorage.setItem(NOTICE_KEY, 'De host heeft je uit de lobby gehaald.'); } catch (e) {}
+      backToMenuPage(0);
     });
     socket.on('disconnect', () => {
       if (!IS_AUTH_REDIRECT) $('conn-bar').classList.remove('hidden');
@@ -959,6 +997,9 @@
     }
     function setMode(m) { hostMode = m; pushSettings(); }
     function shuffleTeams() { socket.emit('shuffle_teams'); }
+    function removePlayer(playerId) {
+      if (confirm('Deze speler uit de lobby halen?')) socket.emit('remove_player', { playerId });
+    }
     function moveToTeam(playerId, teamId) { socket.emit('set_team', { playerId, teamId }); }
 
     function hostStartGame() {
@@ -988,6 +1029,11 @@
         pendingAutoStart = false;
         hostFetchAndPlayNext();
       }
+      // Een speler heeft 3 fiches betaald voor een ander nummer: zoek meteen een nieuw nummer
+      if (hs.state === 'GAME' && hs.phase === 'ACTIVE' && hs.swap && hostSwapHandled !== hs.round) {
+        hostSwapHandled = hs.round;
+        hostFetchAndPlayNext();
+      }
     }
 
     function renderHostLobby(s) {
@@ -1003,13 +1049,13 @@
       const box = $('host-lobby-players');
       if (!teamMode) {
         box.innerHTML = s.players.length
-          ? s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'off'}"><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}</span>`).join('')
+          ? s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'off'}"><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}<span class="chip-x" title="Uit de lobby halen" onclick="removePlayer('${p.id}')">✕</span></span>`).join('')
           : '<span class="spotify-info">Nog geen spelers…</span>';
       } else {
         box.innerHTML = '<div class="team-cols">' + s.teams.map(t => `
           <div class="team-col" style="--tc:${t.color}">
             <h4>${esc(t.name)} (${t.members.length})</h4>
-            ${t.members.map(m => `<span class="player-chip clickable ${m.connected ? '' : 'off'}" onclick="moveToTeam('${m.id}', '${t.id === 'A' ? 'B' : 'A'}')"><span class="dot ${m.connected ? '' : 'off'}"></span>${esc(m.name)}</span>`).join('') || '<span class="spotify-info">Leeg</span>'}
+            ${t.members.map(m => `<span class="player-chip clickable ${m.connected ? '' : 'off'}" onclick="moveToTeam('${m.id}', '${t.id === 'A' ? 'B' : 'A'}')"><span class="dot ${m.connected ? '' : 'off'}"></span>${esc(m.name)}<span class="chip-x" title="Uit de lobby halen" onclick="event.stopPropagation(); removePlayer('${m.id}')">✕</span></span>`).join('') || '<span class="spotify-info">Leeg</span>'}
           </div>`).join('') + '</div><p class="spotify-info" style="width:100%">Tik op een speler om van team te wisselen.</p>';
       }
     }
@@ -1044,16 +1090,17 @@
         banner.classList.remove('hidden');
         if (teamMode && s.tr) {
           banner.style.setProperty('--bc', s.tr.activeColor);
-          let txt = `Ronde ${s.round} · ${s.tr.activeTeamName} is aan zet (${s.tr.activePlayerName})`;
+          let txt = `Ronde ${s.turn} · ${s.tr.activeTeamName} is aan zet (${s.tr.activePlayerName})`;
           if (active && s.tr.submitted) {
             if (s.tr.stealStatus === 'pending') txt += ` · ${s.tr.oppTeamName} beslist over inbreken…`;
             else if (s.tr.stealStatus === 'stolen') txt += ` · ⚡ ${s.tr.stealTeamName} breekt in!`;
             else txt += ' · geen inbraak';
           }
+          if (s.swap) txt += ` · 🔄 ${s.swap.byName} koos een ander nummer`;
           banner.innerText = txt;
         } else {
           banner.style.setProperty('--bc', '#8b5cf6');
-          banner.innerText = `Ronde ${s.round}`;
+          banner.innerText = `Ronde ${s.turn}` + (s.swap ? ` · 🔄 ${s.swap.byName} koos een ander nummer` : '');
         }
       }
 
@@ -1117,9 +1164,10 @@
 
       // Volgend nummer / einde
       const nb = $('host-next-btn');
-      setHidden('host-next-btn', over || !(idle || revealed));
+      const swapping = active && !!s.swap;
+      setHidden('host-next-btn', over || !(idle || revealed || swapping));
       nb.disabled = hostBusy;
-      nb.innerText = idle ? 'Start eerste nummer 🎵' : 'Volgend Nummer 🎵';
+      nb.innerText = idle ? 'Start eerste nummer 🎵' : (swapping ? 'Ander nummer zoeken 🔄' : 'Volgend Nummer 🎵');
 
       const wb = $('host-winner');
       if (s.winner) {
@@ -1336,13 +1384,23 @@
     // =====================================================================
     function showPlayerJoin() { showView('view-player-join'); }
 
+    let lastJoin = null;
     function joinRoom() {
       const name = $('player-name').value;
       const pin = $('room-pin').value;
       if (!name || pin.length !== 4) return alert('Vul je naam en 4-cijferige PIN in.');
       currentPin = pin;
+      lastJoin = { pin, name };
       socket.emit('join_room', { pin, name });
     }
+
+    // Die naam zit er al in. Dat kan jijzelf zijn (weggeklikt, ander apparaat): dan neem je je plek weer over.
+    socket.on('name_taken', ({ name }) => {
+      if (!lastJoin) return;
+      if (confirm(`Er zit al iemand met de naam "${name}" in dit spel. Ben jij dat (bijvoorbeeld na het wegklikken of verversen)? Kies OK om je plek weer over te nemen.`)) {
+        socket.emit('join_room', { pin: lastJoin.pin, name: lastJoin.name, reclaim: true });
+      }
+    });
 
     socket.on('join_error', (msg) => alert(msg));
     socket.on('joined', ({ pin, playerId }) => {
@@ -1398,6 +1456,7 @@
     }
 
     function playerBanner(s) {
+      if (s.swap && s.phase === 'ACTIVE') return { color: '#ffd23f', text: `🔄 ${s.swap.byName} koos een ander nummer (3 fiches). Het nieuwe nummer wordt gezocht…` };
       const tr = s.tr;
       if (s.mode !== 'teams' || !tr || s.phase === 'REVEALED') return null;
       const color = tr.activeColor;
@@ -1549,7 +1608,7 @@
 
       const iAmActive = teamMode ? !!(tr && tr.iAmActive) : true;
       const submitted = teamMode ? !!(tr && tr.iAmActive && tr.submitted) : !!s.submitted;
-      const canPlace = active && iAmActive && !submitted;
+      const canPlace = active && iAmActive && !submitted && !s.swap;
       if (submitted) ui.sending = false;
 
       // Na een refresh: eerdere keuze terugzetten
@@ -1603,6 +1662,15 @@
       }
 
       setHidden('pg-exact', !(s.guessYear && active && iAmActive));
+
+      // Ander nummer kiezen (kost 3 fiches)
+      const showSwap = active && iAmActive && !submitted && !s.swap;
+      setHidden('btn-new-track', !showSwap);
+      const nt = $('btn-new-track');
+      nt.disabled = !s.canSwap;
+      nt.innerText = s.canSwap
+        ? `🔄 Ander nummer kiezen (kost ${s.swapCost} fiches)`
+        : `🔄 Ander nummer (kost ${s.swapCost} fiches, ${teamMode ? 'jullie hebben er' : 'je hebt er'} ${s.tokens})`;
       setHidden('pg-guess', !(s.guessTitle && active && iAmActive));
       $('player-exact-year').disabled = submitted;
       $('guess-title').disabled = submitted;
@@ -1611,7 +1679,8 @@
       // Tijdlijn
       $('pg-timeline-label').innerText = teamMode ? `Tijdlijn van ${s.teamName}` : 'Jouw Hitster Tijdlijn';
       let hint = '';
-      if (canPlace) hint = 'Tik op een + om je kaart in te voegen:';
+      if (s.swap && active) hint = `🔄 ${s.swap.byName} koos een ander nummer. Het nieuwe nummer wordt gezocht…`;
+      else if (canPlace) hint = 'Tik op een + om je kaart in te voegen:';
       else if (active && submitted) hint = 'Ingediend. Wachten op de uitslag…';
       else if (active && teamMode && tr && tr.myTeamActive) hint = 'Alleen de speler aan zet plaatst de kaart. Denk mee!';
       $('pg-timeline-hint').innerText = hint;
@@ -1647,7 +1716,7 @@
 
       setHidden('btn-submit-turn', !(active && iAmActive));
       const sb = $('btn-submit-turn');
-      sb.disabled = submitted || ui.sending;
+      sb.disabled = submitted || ui.sending || !!s.swap;
       sb.innerText = submitted ? '⏳ Ingediend! Wachten...' : '✅ Keuze Indienen';
 
       renderSteal(s);
@@ -1767,8 +1836,14 @@
       if (ps) renderGame(ps);
     }
 
+    function requestNewTrack() {
+      if (!ps || !ps.canSwap) return;
+      if (!confirm(`Een ander nummer kiezen kost ${ps.swapCost} fiches. Doorgaan?`)) return;
+      socket.emit('request_new_track');
+    }
+
     function leaveGame() {
-      if (!confirm('Het spel verlaten?')) return;
+      if (!confirm('Het spel verlaten? Je kunt later terugkomen met dezelfde naam en PIN.')) return;
       socket.emit('leave_room');
       clearSession();
       backToMenuPage(200);

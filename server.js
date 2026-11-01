@@ -118,10 +118,11 @@ const rooms = {};
 const socketIndex = {}; // socket.id -> { pin, role: 'host' | 'player', playerId }
 
 const MAX_TOKENS = 5;
-const START_TOKENS = 3;
+const START_TOKENS = 2;
+const SWAP_COST = 3; // een ander nummer kiezen kost 3 fiches
 const TARGETS = [0, 5, 7, 10, 15, 20]; // 0 = geen limiet
 const HOST_GRACE_MS = Number(process.env.HOST_GRACE_MS) || 15 * 60 * 1000;  // kamer blijft bestaan als de host weg is
-const LOBBY_GRACE_MS = Number(process.env.LOBBY_GRACE_MS) || 20 * 1000;     // speler in de lobby die wegvalt
+const LOBBY_GRACE_MS = Number(process.env.LOBBY_GRACE_MS) || 10 * 60 * 1000; // speler in de lobby die wegvalt mag terugkomen
 const ACTIVE_GRACE_MS = Number(process.env.ACTIVE_GRACE_MS) || 15 * 1000;   // speler aan zet die wegvalt: beurt overdragen
 
 const TEAM_DEFS = {
@@ -227,13 +228,21 @@ function pickActivePlayer(room, teamId) {
   return pool[idx % pool.length];
 }
 
-function startTeamRound(room) {
-  let teamId = room.round % 2 === 1 ? 'A' : 'B';
-  if (!teamMembers(room, teamId).length) teamId = otherTeam(teamId);
-  const player = pickActivePlayer(room, teamId);
+// keep: bij een ander nummer blijft dezelfde speler aan zet
+function startTeamRound(room, keep) {
+  let teamId, playerId;
+  if (keep) {
+    teamId = keep.teamId;
+    playerId = keep.playerId;
+  } else {
+    teamId = room.turn % 2 === 1 ? 'A' : 'B';
+    if (!teamMembers(room, teamId).length) teamId = otherTeam(teamId);
+    const player = pickActivePlayer(room, teamId);
+    playerId = player ? player.id : null;
+  }
   room.active = {
     teamId,
-    playerId: player ? player.id : null,
+    playerId,
     submitted: false,
     slotIndex: null,
     exactYear: null,
@@ -261,7 +270,11 @@ function refundOpenRound(room) {
 
 // ---------- Verbinding en herstel ----------
 function attachPlayer(socket, room, player) {
-  if (player.socketId && player.socketId !== socket.id) delete socketIndex[player.socketId];
+  if (player.socketId && player.socketId !== socket.id) {
+    // Een oudere verbinding (ander tabblad of apparaat) wordt overgenomen
+    io.to(player.socketId).emit('replaced');
+    delete socketIndex[player.socketId];
+  }
   clearTimeout(player.dropTimer);
   player.socketId = socket.id;
   player.connected = true;
@@ -532,6 +545,8 @@ function hostSnapshot(room) {
     state: room.state,
     phase: room.phase,
     round: room.round,
+    turn: room.turn,
+    swap: room.swap ? { byName: room.swap.byName, teamName: room.swap.teamId && room.teams ? room.teams[room.swap.teamId].name : null } : null,
     players: playersOf(room).map(p => {
       const own = teamMode && room.teams ? room.teams[p.teamId] : p;
       return {
@@ -619,6 +634,10 @@ function playerSnapshot(room, p) {
     state: room.state,
     phase: room.phase,
     round: room.round,
+    turn: room.turn,
+    swap: room.swap ? { byName: room.swap.byName } : null,
+    canSwap: canSwapNow(room, p),
+    swapCost: SWAP_COST,
     hostConnected: room.hostConnected,
     teamId: teamMode ? p.teamId : null,
     teamName: teamMode ? TEAM_DEFS[p.teamId].name : null,
@@ -642,6 +661,16 @@ function broadcastState(room) {
   for (const p of playersOf(room)) {
     if (p.connected && p.socketId) io.to(p.socketId).emit('player_state', playerSnapshot(room, p));
   }
+}
+
+// Mag deze speler nu een ander nummer kiezen?
+function canSwapNow(room, p) {
+  if (room.state !== 'GAME' || room.phase !== 'ACTIVE' || room.swap) return false;
+  if (room.settings.mode === 'teams') {
+    const a = room.active;
+    return !!(a && a.playerId === p.id && !a.submitted && room.teams[a.teamId].tokens >= SWAP_COST);
+  }
+  return !p.submitted && p.tokens >= SWAP_COST;
 }
 
 // Starters voor spelers die nog geen kaarten hebben (solo-modus)
@@ -687,7 +716,9 @@ io.on('connection', (socket) => {
       settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, category: 'original' },
       state: 'LOBBY',        // LOBBY | GAME | OVER
       phase: 'IDLE',         // IDLE | ACTIVE | REVEALED
-      round: 0,
+      round: 0,              // telt elk nummer (ook een vervangen nummer); de pagina wist hiermee invoer
+      turn: 0,               // telt beurten; een ander nummer is geen nieuwe beurt
+      swap: null,            // lopend verzoek om een ander nummer
       players: {},
       teams: null,
       turnIdx: { A: 0, B: 0 },
@@ -766,6 +797,8 @@ io.on('connection', (socket) => {
     room.state = 'GAME';
     room.phase = 'IDLE';
     room.round = 0;
+    room.turn = 0;
+    room.swap = null;
     room.winner = null;
     broadcastState(room);
 
@@ -779,6 +812,8 @@ io.on('connection', (socket) => {
     if (!room || room.state !== 'GAME') return;
     if (!track || !track.title || !track.artist || !Number.isFinite(Number(track.year))) return;
 
+    const isSwap = !!room.swap;
+    const keep = isSwap && room.active ? { teamId: room.active.teamId, playerId: room.active.playerId } : null;
     refundOpenRound(room);
     room.currentTrack = {
       title: String(track.title).slice(0, 200),
@@ -788,6 +823,8 @@ io.on('connection', (socket) => {
       uri: String(track.uri || '').slice(0, 100)
     };
     room.round += 1;
+    if (!isSwap) room.turn += 1;
+    room.swap = null;
     room.phase = 'ACTIVE';
     room.lastReveal = null;
     room.judgements = {};
@@ -795,7 +832,7 @@ io.on('connection', (socket) => {
       p.submitted = false;
       p.guess = null;
     }
-    if (room.settings.mode === 'teams') startTeamRound(room);
+    if (room.settings.mode === 'teams') startTeamRound(room, keep);
     broadcastState(room);
   });
 
@@ -829,24 +866,39 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
+  socket.on('remove_player', ({ playerId } = {}) => {
+    const room = hostRoom(socket);
+    if (!room || room.state !== 'LOBBY') return;
+    const p = room.players[playerId];
+    if (!p) return;
+    clearTimeout(p.dropTimer);
+    if (p.socketId) {
+      io.to(p.socketId).emit('removed');
+      delete socketIndex[p.socketId];
+    }
+    delete room.players[playerId];
+    broadcastState(room);
+  });
+
   socket.on('close_room', () => {
     const room = hostRoom(socket);
     if (room) closeRoom(room, true);
   });
 
   // ---------- Speler ----------
-  socket.on('join_room', async ({ pin, name } = {}) => {
+  socket.on('join_room', async ({ pin, name, reclaim } = {}) => {
     const room = rooms[String(pin || '')];
     if (!room) return socket.emit('join_error', 'Kamer niet gevonden!');
-    if (room.state === 'OVER') return socket.emit('join_error', 'Dit spel is afgelopen.');
     const cleanName = cleanText(name).slice(0, 15);
     if (!cleanName) return socket.emit('join_error', 'Vul je naam in.');
 
-    // Dezelfde naam als een speler die even weg is: dan komt die speler terug
+    // Dezelfde naam als een speler die er al is: dan komt die speler terug (ook als het spel al klaar is)
     const existing = playersOf(room).find(p => p.name.toLowerCase() === cleanName.toLowerCase());
+    if (room.state === 'OVER' && !existing) return socket.emit('join_error', 'Dit spel is afgelopen.');
     let player;
     if (existing) {
-      if (existing.connected) return socket.emit('join_error', 'Deze naam is al in gebruik.');
+      // Staat hij nog als verbonden (bijv. een oude, half dode verbinding)? Dan eerst vragen of hij het is.
+      if (existing.connected && !reclaim) return socket.emit('name_taken', { name: existing.name });
       player = existing;
     } else {
       player = {
@@ -894,9 +946,20 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
+  // Ander nummer kiezen: kost 3 fiches, alleen voordat je je keuze hebt ingediend.
+  // De host zoekt daarna een nieuw nummer; dezelfde speler blijft aan zet.
+  socket.on('request_new_track', () => {
+    const { room, player } = playerCtx(socket);
+    if (!room || !canSwapNow(room, player)) return;
+    if (room.settings.mode === 'teams') room.teams[room.active.teamId].tokens -= SWAP_COST;
+    else player.tokens -= SWAP_COST;
+    room.swap = { byPlayerId: player.id, byName: player.name, teamId: player.teamId };
+    broadcastState(room);
+  });
+
   socket.on('submit_turn', (data = {}) => {
     const { room, player } = playerCtx(socket);
-    if (!room || room.state !== 'GAME' || room.phase !== 'ACTIVE' || player.submitted) return;
+    if (!room || room.state !== 'GAME' || room.phase !== 'ACTIVE' || player.submitted || room.swap) return;
 
     const title = room.settings.guessTitle ? cleanText(data.guessTitle) : '';
     const artist = room.settings.guessTitle ? cleanText(data.guessArtist) : '';
@@ -936,7 +999,7 @@ io.on('connection', (socket) => {
   // Inbreken: het andere team zet een fiche in en kiest een andere plek in de tijdlijn van het team dat aan zet is
   socket.on('submit_steal', ({ slotIndex } = {}) => {
     const { room, player } = playerCtx(socket);
-    if (!room || room.settings.mode !== 'teams' || room.phase !== 'ACTIVE') return;
+    if (!room || room.settings.mode !== 'teams' || room.phase !== 'ACTIVE' || room.swap) return;
     const a = room.active;
     if (!a || !a.submitted || a.steal.status !== 'pending') return;
     if (player.teamId !== otherTeam(a.teamId)) return;
@@ -953,7 +1016,7 @@ io.on('connection', (socket) => {
 
   socket.on('pass_steal', () => {
     const { room, player } = playerCtx(socket);
-    if (!room || room.settings.mode !== 'teams' || room.phase !== 'ACTIVE') return;
+    if (!room || room.settings.mode !== 'teams' || room.phase !== 'ACTIVE' || room.swap) return;
     const a = room.active;
     if (!a || !a.submitted || a.steal.status !== 'pending') return;
     if (player.teamId !== otherTeam(a.teamId)) return;
