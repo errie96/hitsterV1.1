@@ -236,6 +236,7 @@ function startTeamRound(room) {
     playerId: player ? player.id : null,
     submitted: false,
     slotIndex: null,
+    exactYear: null,
     title: '',
     artist: '',
     steal: { status: 'idle', teamId: null, playerId: null, slotIndex: null, paid: false }
@@ -332,11 +333,21 @@ function revealSolo(room) {
       }
     }
 
+    // Exact jaartal goed = +1 fiche. Het systeem weet het jaar, de host hoeft niets te controleren.
+    const yearGuess = g ? g.exactYear : null;
+    const yearCorrect = yearGuess !== null && yearGuess === actual;
+    let yearToken = false;
+    if (yearCorrect) {
+      const before = p.tokens;
+      p.tokens = Math.min(MAX_TOKENS, p.tokens + 1);
+      yearToken = p.tokens > before;
+    }
+
     if (wonCard) {
       p.score += pointsEarned;
       insertSorted(p.timeline, card);
     }
-    results[p.id] = { wonCard, pointsEarned, tokenReturned, hadGuess: !!g };
+    results[p.id] = { wonCard, pointsEarned, tokenReturned, hadGuess: !!g, yearGuess, yearCorrect, yearToken };
   }
   return { track: card, exactWinners, results };
 }
@@ -357,6 +368,19 @@ function revealTeams(room) {
     outcome = 'stolen';
     winnerTeamId = a.steal.teamId;
   }
+  // Exact jaartal van de speler aan zet goed = +1 fiche voor het team (automatisch gecontroleerd)
+  const yearGuess = a.submitted ? a.exactYear : null;
+  const yearCorrect = yearGuess !== null && yearGuess === actual;
+  let yearToken = false;
+  if (yearCorrect) {
+    const t = room.teams[a.teamId];
+    const before = t.tokens;
+    t.tokens = Math.min(MAX_TOKENS, t.tokens + 1);
+    yearToken = t.tokens > before;
+  }
+
+  // Tijdlijn zoals die was toen de plekken gekozen werden (voor het terugkijken)
+  const activeTimelineBefore = activeTeam.timeline.map(c => ({ ...c }));
   if (winnerTeamId) insertSorted(room.teams[winnerTeamId].timeline, card);
 
   return {
@@ -366,7 +390,13 @@ function revealTeams(room) {
     activeTeamId: a.teamId,
     activePlayerId: a.playerId,
     stealStatus: a.steal.status,
-    stealTeamId: a.steal.teamId
+    stealTeamId: a.steal.teamId,
+    activeTimeline: activeTimelineBefore,
+    chosenSlot: a.submitted ? a.slotIndex : null,
+    stealSlot: a.steal.status === 'stolen' ? a.steal.slotIndex : null,
+    yearGuess,
+    yearCorrect,
+    yearToken
   };
 }
 
@@ -429,6 +459,7 @@ function teamList(room) {
       color: TEAM_DEFS[id].color,
       count: t ? t.timeline.length : 0,
       tokens: t ? t.tokens : START_TOKENS,
+      timeline: t ? t.timeline : [],
       members: teamMembers(room, id).map(m => ({ id: m.id, name: m.name, connected: m.connected }))
     };
   });
@@ -447,10 +478,18 @@ function publicReveal(room) {
       winnerTeamName: nm(lr.winnerTeamId),
       activeTeamId: lr.activeTeamId,
       activeTeamName: nm(lr.activeTeamId),
+      activeTeamColor: lr.activeTeamId ? TEAM_DEFS[lr.activeTeamId].color : null,
       activePlayerName: ap ? ap.name : '',
       stealStatus: lr.stealStatus,
       stealTeamId: lr.stealTeamId,
-      stealTeamName: nm(lr.stealTeamId)
+      stealTeamName: nm(lr.stealTeamId),
+      stealTeamColor: lr.stealTeamId ? TEAM_DEFS[lr.stealTeamId].color : null,
+      activeTimeline: lr.activeTimeline,
+      chosenSlot: lr.chosenSlot,
+      stealSlot: lr.stealSlot,
+      yearGuess: lr.yearGuess,
+      yearCorrect: lr.yearCorrect,
+      yearToken: lr.yearToken
     });
   }
   return out;
@@ -468,8 +507,11 @@ function hostTr(room) {
     oppTeamName: ot.name,
     activePlayerName: ap ? ap.name : '?',
     submitted: a.submitted,
+    chosenSlot: a.submitted ? a.slotIndex : null,
     stealStatus: a.steal.status,
-    stealTeamName: a.steal.teamId ? room.teams[a.steal.teamId].name : null
+    stealTeamName: a.steal.teamId ? room.teams[a.steal.teamId].name : null,
+    stealColor: a.steal.teamId ? TEAM_DEFS[a.steal.teamId].color : null,
+    stealSlot: a.steal.status === 'stolen' ? a.steal.slotIndex : null
   };
 }
 
@@ -542,12 +584,15 @@ function playerTr(room, p) {
     myTeamActive: p.teamId === at.id,
     submitted: a.submitted,
     chosenSlot: a.submitted ? a.slotIndex : null,
+    myYear: iAmActive ? a.exactYear : null,
     myTitle: iAmActive ? a.title : '',
     myArtist: iAmActive ? a.artist : '',
     stealStatus: a.steal.status,
     stealTeamName: a.steal.teamId ? room.teams[a.steal.teamId].name : null,
+    stealColor: a.steal.teamId ? TEAM_DEFS[a.steal.teamId].color : null,
+    stealSlot: a.steal.status === 'stolen' ? a.steal.slotIndex : null,
     canSteal: room.phase === 'ACTIVE' && a.submitted && a.steal.status === 'pending' && mineOpp && ot.tokens > 0,
-    activeTimeline: mineOpp ? at.timeline : null
+    activeTimeline: at.timeline
   };
 }
 
@@ -570,6 +615,7 @@ function playerSnapshot(room, p) {
     mode: room.settings.mode,
     target: room.settings.target,
     guessTitle: room.settings.guessTitle,
+    guessYear: room.settings.guessYear,
     state: room.state,
     phase: room.phase,
     round: room.round,
@@ -638,7 +684,7 @@ io.on('connection', (socket) => {
       hostSocketId: socket.id,
       hostConnected: true,
       hostTimer: null,
-      settings: { mode: 'solo', target: 10, guessTitle: true, category: 'original' },
+      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, category: 'original' },
       state: 'LOBBY',        // LOBBY | GAME | OVER
       phase: 'IDLE',         // IDLE | ACTIVE | REVEALED
       round: 0,
@@ -677,6 +723,7 @@ io.on('connection', (socket) => {
     if (s.mode === 'solo' || s.mode === 'teams') room.settings.mode = s.mode;
     if (TARGETS.includes(Number(s.target))) room.settings.target = Number(s.target);
     if (typeof s.guessTitle === 'boolean') room.settings.guessTitle = s.guessTitle;
+    if (typeof s.guessYear === 'boolean') room.settings.guessYear = s.guessYear;
     if (typeof s.category === 'string') room.settings.category = s.category.slice(0, 20);
     broadcastState(room);
   });
@@ -854,6 +901,8 @@ io.on('connection', (socket) => {
     const title = room.settings.guessTitle ? cleanText(data.guessTitle) : '';
     const artist = room.settings.guessTitle ? cleanText(data.guessArtist) : '';
     const slot = Number.isInteger(data.slotIndex) ? data.slotIndex : null;
+    const exact = parseInt(data.exactYear, 10);
+    const exactYear = room.settings.guessYear && Number.isFinite(exact) && exact >= 1900 && exact <= 2100 ? exact : null;
 
     if (room.settings.mode === 'teams') {
       const a = room.active;
@@ -863,6 +912,7 @@ io.on('connection', (socket) => {
 
       a.submitted = true;
       a.slotIndex = slot;
+      a.exactYear = exactYear;
       a.title = title;
       a.artist = artist;
       player.submitted = true;
@@ -872,8 +922,6 @@ io.on('connection', (socket) => {
       const oppOnline = teamMembers(room, opp.id).some(m => m.connected);
       a.steal.status = opp.tokens > 0 && oppOnline ? 'pending' : 'passed';
     } else {
-      const exact = parseInt(data.exactYear, 10);
-      const exactYear = Number.isFinite(exact) && exact >= 1900 && exact <= 2100 ? exact : null;
       const slotOk = validSlot(player.timeline, slot);
       if (!slotOk && exactYear === null) return;
 

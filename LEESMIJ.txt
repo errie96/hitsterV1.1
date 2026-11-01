@@ -14,12 +14,24 @@ Spelmodi (kies in de lobby):
                kloppen zij en niet het team aan zet, dan komt de kaart in
                hun tijdlijn. De host kan spelers van team wisselen of de
                teams willekeurig verdelen.
+               Het team dat niet aan zet is ziet altijd de tijdlijn van het
+               andere team, met hun plek (📍) en bij inbreken de plek van de
+               inbreker (⚡). De host ziet de tijdlijnen van beide teams.
+               Bij het onthullen verschijnt de kaart als vierkante kaart op het
+               hostscherm en op alle telefoons.
   Winnaar bij  5/7/10/15/20 kaarten, of geen limiet.
 
 Titel & artiest raden (aan/uit in de lobby):
   Spelers kunnen titel en artiest invullen. Na de uitslag keurt de host elke
   gok goed of af (typfouten dus geen probleem; de pagina geeft een hint).
   Goedgekeurd = +1 fiche (maximaal 5).
+
+Exact jaartal raden (aan/uit in de lobby):
+  De speler aan zet (of in de individuele modus iedereen) kan het exacte jaartal
+  invullen. Het spel controleert dit zelf; de host hoeft niets te doen.
+  Goed = +1 fiche. In de individuele modus geldt daarnaast de bestaande bonus:
+  wie het exacte jaartal heeft wint de kaart en krijgt extra punten.
+  Je kunt titel & artiest en jaartal los van elkaar aan- of uitzetten.
 
 Sessieherstel:
   Wie de pagina ververst of even geen verbinding heeft, komt terug waar hij was

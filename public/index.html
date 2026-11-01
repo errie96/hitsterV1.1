@@ -499,6 +499,29 @@
     .link-btn { background: none; border: none; color: var(--text-dim); text-decoration: underline; cursor: pointer; font-size: 0.8rem; padding: 4px; }
     .small-btn { padding: 10px; font-size: 0.85rem; }
 
+    /* ===== Vierkante uitslagkaart + borden met tijdlijnen ===== */
+    .hitster-card.big { min-width: 230px; max-width: 230px; height: 230px; padding: 16px 14px; margin: 4px auto; border-radius: 16px; }
+    .hitster-card.big::before { width: 270px; height: 270px; right: -125px; bottom: -125px; }
+    .hitster-card.big .card-artist { font-size: 1rem; }
+    .hitster-card.big .card-year { font-size: 4.2rem; }
+    .hitster-card.big .card-title { font-size: 1.05rem; }
+    .hitster-card.mid { min-width: 176px; max-width: 176px; height: 176px; padding: 13px 11px; margin: 4px auto; border-radius: 14px; }
+    .hitster-card.mid::before { width: 210px; height: 210px; right: -100px; bottom: -100px; }
+    .hitster-card.mid .card-artist { font-size: 0.8rem; }
+    .hitster-card.mid .card-year { font-size: 3.1rem; }
+    .hitster-card.mid .card-title { font-size: 0.88rem; }
+    .hitster-card.flip { animation: flipIn 0.8s ease; }
+    .reveal-wrap { display: none; flex-direction: column; gap: 10px; text-align: center; }
+    .reveal-mini { display: flex; justify-content: center; }
+
+    .board { border: 2px solid var(--accent-purple); border-radius: 14px; padding: 10px; background: #07070d; text-align: left; }
+    .board-title { font-weight: 800; font-size: 0.85rem; }
+    .board-legend { font-size: 0.76rem; font-weight: 700; margin: 4px 0 2px; color: var(--text-dim); }
+    .host-tl { --tc: var(--accent-purple); border: 2px solid var(--tc); border-radius: 14px; padding: 8px; background: #07070d; text-align: left; }
+    .host-tl.on { box-shadow: 0 0 16px var(--tc); }
+    .host-tl-head { font-weight: 800; font-size: 0.85rem; color: var(--tc); }
+    .host-board-legend { font-size: 0.74rem; color: var(--text-dim); text-align: left; }
+
     .hidden { display: none !important; }
 
     @media (prefers-reduced-motion: reduce) {
@@ -572,7 +595,12 @@
 
     <label class="check-row">
       <input type="checkbox" id="guess-title-check" checked onchange="pushSettings()">
-      <span>Titel &amp; artiest raden toestaan. Goed geraden (door de host goedgekeurd) = +1 fiche.</span>
+      <span>Titel &amp; artiest raden toestaan. De host keurt elke gok goed of af (typfouten!). Goed = +1 fiche.</span>
+    </label>
+
+    <label class="check-row">
+      <input type="checkbox" id="guess-year-check" checked onchange="pushSettings()">
+      <span>Exact jaartal raden toestaan. Het spel controleert dit zelf. Goed = +1 fiche.</span>
     </label>
 
     <label style="font-size: 0.8rem; color: var(--text-dim); text-align: left;">Kies Hitster Editie / Categorie:</label>
@@ -654,15 +682,24 @@
     </button>
     <button id="host-force-reveal" class="link-btn hidden" onclick="hostReveal()">Toch onthullen</button>
 
-    <div id="host-reveal-box" class="reveal-card">
-      <div id="reveal-artist" class="reveal-artist">-</div>
-      <div id="reveal-year" class="reveal-year">----</div>
-      <div id="reveal-title" class="reveal-title">-</div>
+    <div id="host-reveal-box" class="reveal-wrap">
+      <div id="host-reveal-card" class="hitster-card big">
+        <div id="reveal-artist" class="card-artist">-</div>
+        <div id="reveal-year" class="card-year">----</div>
+        <div id="reveal-title" class="card-title">-</div>
+      </div>
       <div id="reveal-exact-info" class="reveal-info"></div>
       <div id="judge-panel" class="judge-panel hidden"></div>
     </div>
 
     <button id="host-next-btn" class="btn hidden" onclick="hostFetchAndPlayNext()">Volgend Nummer 🎵</button>
+
+    <div id="host-teams-board" class="scoreboard hidden">
+      <div class="sb-title">Tijdlijnen van de teams</div>
+      <div class="host-board-legend">📍 = plek van het team aan zet · ⚡ = plek van het team dat inbreekt</div>
+      <div id="host-board-A" class="host-tl"><div id="host-tl-head-A" class="host-tl-head"></div><div id="host-tl-A" class="timeline-scroll-container"></div></div>
+      <div id="host-board-B" class="host-tl"><div id="host-tl-head-B" class="host-tl-head"></div><div id="host-tl-B" class="timeline-scroll-container"></div></div>
+    </div>
 
     <div id="host-winner" class="winner-banner hidden"></div>
     <div id="host-scoreboard" class="scoreboard"></div>
@@ -677,7 +714,39 @@
     </div>
 
     <div id="pg-host-away" class="feedback lose">De host is even weg… even geduld.</div>
+    <div id="pg-winner" class="winner-banner hidden"></div>
     <div id="pg-banner" class="banner hidden"></div>
+
+    <!-- Uitslag: dezelfde vierkante kaart als in de tijdlijn -->
+    <div id="pg-reveal" class="reveal-mini hidden">
+      <div id="pg-reveal-card" class="hitster-card mid">
+        <div id="pg-reveal-artist" class="card-artist">-</div>
+        <div id="pg-reveal-year" class="card-year">----</div>
+        <div id="pg-reveal-title" class="card-title">-</div>
+      </div>
+    </div>
+    <div id="player-feedback-msg" class="feedback"></div>
+
+    <!-- Tijdlijn van het andere team (met de gekozen plekken) -->
+    <div id="pg-board" class="board hidden">
+      <div id="board-title" class="board-title"></div>
+      <div id="board-legend" class="board-legend"></div>
+      <div id="board-timeline" class="timeline-scroll-container"></div>
+    </div>
+
+    <!-- Inbreken (alleen teams, voor het team dat NIET aan zet is) -->
+    <div id="pg-steal" class="steal-box hidden">
+      <div class="st">⚡ Inbreken?</div>
+      <p id="steal-text"></p>
+      <div id="steal-actions" class="steal-actions">
+        <button class="btn btn-token" onclick="startSteal()">⚡ Inbreken (1 fiche)</button>
+        <button class="btn btn-secondary" onclick="passSteal()">Laat maar</button>
+      </div>
+      <div id="steal-picker" class="steal-actions" style="display: none;">
+        <button id="steal-confirm" class="btn btn-submit" onclick="confirmSteal()" disabled>⚡ Bevestig inbraak</button>
+        <button class="btn btn-secondary" onclick="cancelSteal()">Annuleren</button>
+      </div>
+    </div>
 
     <!-- Mysterie-kaart -->
     <div id="pg-mystery" class="mystery-row">
@@ -698,7 +767,7 @@
 
     <!-- Exact Jaartal (alleen individueel) -->
     <div id="pg-exact" style="background: #07070d; border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; text-align: left;">
-      <div style="font-size: 0.78rem; font-weight: bold; color: var(--accent-gold); margin-bottom: 6px;">🎯 Weet je het exacte jaartal? (Optioneel)</div>
+      <div style="font-size: 0.78rem; font-weight: bold; color: var(--accent-gold); margin-bottom: 6px;">🎯 Weet je het exacte jaartal? Goed = +1 fiche (het spel controleert dit zelf)</div>
       <input type="number" id="player-exact-year" placeholder="bijv. 1984" min="1950" max="2026">
     </div>
 
@@ -717,32 +786,11 @@
     <!-- Scrollbare Hitster Kaarten Tijdlijn -->
     <div id="player-timeline-scroll" class="timeline-scroll-container"></div>
 
-    <!-- Inbreken (alleen teams, voor het team dat NIET aan zet is) -->
-    <div id="pg-steal" class="steal-box hidden">
-      <div class="st">⚡ Inbreken?</div>
-      <p id="steal-text"></p>
-      <div id="steal-actions" class="steal-actions">
-        <button class="btn btn-token" onclick="startSteal()">⚡ Inbreken (1 fiche)</button>
-        <button class="btn btn-secondary" onclick="passSteal()">Laat maar</button>
-      </div>
-      <div id="steal-picker" style="display: none;">
-        <p style="margin-bottom: 6px;">Kies waar jij denkt dat de kaart hoort in de tijdlijn van <strong id="steal-team-name"></strong>:</p>
-        <div id="steal-timeline" class="timeline-scroll-container"></div>
-        <div class="steal-actions">
-          <button id="steal-confirm" class="btn btn-submit" onclick="confirmSteal()" disabled>⚡ Bevestig inbraak</button>
-          <button class="btn btn-secondary" onclick="cancelSteal()">Annuleren</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Bevestigen Knop -->
     <button id="btn-submit-turn" class="btn btn-submit" onclick="submitPlayerTurn()">
       ✅ Keuze Indienen
     </button>
 
-    <!-- Uitslag Pop-up / Feedback -->
-    <div id="player-feedback-msg" class="feedback"></div>
-    <div id="pg-winner" class="winner-banner hidden"></div>
     <button class="link-btn" onclick="leaveGame()">Spel verlaten</button>
   </div>
 
@@ -896,6 +944,7 @@
       hostMode = st.mode;
       $('target-select').value = String(st.target);
       $('guess-title-check').checked = !!st.guessTitle;
+      $('guess-year-check').checked = st.guessYear !== false;
       $('category-select').value = st.category;
     }
 
@@ -904,6 +953,7 @@
         mode: hostMode,
         target: Number($('target-select').value),
         guessTitle: $('guess-title-check').checked,
+        guessYear: $('guess-year-check').checked,
         category: $('category-select').value
       });
     }
@@ -1037,21 +1087,28 @@
       const box = $('host-reveal-box');
       if (revealed && s.reveal) {
         const r = s.reveal;
-        box.setAttribute('style', cardTheme(r.track.year));
-        box.style.display = 'block';
+        const rc = $('host-reveal-card');
+        rc.setAttribute('style', cardTheme(r.track.year));
+        box.style.display = 'flex';
         $('reveal-title').innerText = r.track.title;
         $('reveal-artist').innerText = r.track.artist;
         $('reveal-year').innerText = r.track.year;
+        let yearLine = '';
+        if (teamMode && r.yearGuess !== null && r.yearGuess !== undefined) {
+          yearLine = r.yearCorrect
+            ? `<br>🎯 ${esc(r.activePlayerName)} raadde het exacte jaartal (${r.yearGuess}): +1 fiche voor ${esc(r.activeTeamName)}.`
+            : `<br>Jaartalgok van ${esc(r.activePlayerName)}: ${r.yearGuess} (fout).`;
+        }
         $('reveal-exact-info').innerHTML = teamMode
-          ? esc(teamOutcomeText(r))
+          ? esc(teamOutcomeText(r)) + yearLine
           : (r.exactWinners.length
-              ? `🎯 EXACT GERADEN DOOR: ${r.exactWinners.map(esc).join(', ')}!<br>(Alleen zij winnen deze ronde!)`
+              ? `🎯 EXACT GERADEN DOOR: ${r.exactWinners.map(esc).join(', ')}!<br>(Alleen zij winnen deze ronde, en +1 fiche!)`
               : 'Niemand had het exacte jaartal goed. Juiste tijdlijnen scoren!');
         if (hostAnimRound !== s.round) {
           hostAnimRound = s.round;
-          box.classList.remove('flip');
-          void box.offsetWidth;
-          box.classList.add('flip');
+          rc.classList.remove('flip');
+          void rc.offsetWidth;
+          rc.classList.add('flip');
         }
         renderJudgePanel(s);
       } else {
@@ -1073,6 +1130,32 @@
       }
 
       renderScoreboard(s);
+      renderHostBoard(s);
+    }
+
+    // Beide teams met hun tijdlijn (vierkante kaarten). Tijdens de ronde staan hun gekozen plekken erin.
+    let hostBoardAnimRound = null;
+    function renderHostBoard(s) {
+      const teamMode = s.settings.mode === 'teams' && !!s.teams;
+      setHidden('host-teams-board', !teamMode);
+      if (!teamMode) return;
+      const active = s.phase === 'ACTIVE', revealed = s.phase === 'REVEALED';
+      const tr = s.tr;
+      s.teams.forEach(t => {
+        const isActiveTeam = !!(tr && tr.activeTeamId === t.id && s.phase !== 'IDLE');
+        const wrap = $('host-board-' + t.id);
+        wrap.style.setProperty('--tc', t.color);
+        wrap.classList.toggle('on', isActiveTeam);
+        $('host-tl-head-' + t.id).innerText = `${isActiveTeam ? '▶ ' : ''}${t.name} · ${t.count} kaarten`;
+
+        const markers = [];
+        if (active && isActiveTeam && tr.chosenSlot !== null) markers.push({ idx: tr.chosenSlot, icon: '📍', color: tr.activeColor });
+        if (active && isActiveTeam && tr.stealSlot !== null) markers.push({ idx: tr.stealSlot, icon: '⚡', color: tr.stealColor });
+        const popKey = revealed && s.reveal && s.reveal.winnerTeamId === t.id && hostBoardAnimRound !== s.round
+          ? s.reveal.track.title + '|' + s.reveal.track.year : null;
+        renderTimeline($('host-tl-' + t.id), t.timeline || [], { markers, popKey });
+      });
+      if (revealed) hostBoardAnimRound = s.round;
     }
 
     function renderJudgePanel(s) {
@@ -1340,21 +1423,22 @@
       }
     }
 
-    // Tijdlijn tekenen. Opties: selectable, selectedIdx, markerIdx, markerColor, popKey, onPick
+    // Tijdlijn tekenen. Opties: selectable, selectedIdx, markers [{idx, icon, color}], popKey, onPick
     function renderTimeline(container, timeline, o) {
       o = o || {};
+      const markers = o.markers || [];
       container.innerHTML = '';
       let popDone = false;
       let popEl = null;
       for (let i = 0; i <= timeline.length; i++) {
-        const isMarker = o.markerIdx === i;
+        const marker = markers.find(m => m.idx === i);
         const isSelected = o.selectedIdx === i;
-        if (o.selectable || isMarker || isSelected) {
+        if (o.selectable || marker || isSelected) {
           const slot = document.createElement('button');
-          slot.className = 'timeline-slot-btn' + (isSelected ? ' selected' : '') + (isMarker ? ' marked' : '');
-          if (isMarker) {
-            slot.style.setProperty('--mc', o.markerColor || '#ffffff');
-            slot.innerText = '📍';
+          slot.className = 'timeline-slot-btn' + (isSelected && !marker ? ' selected' : '') + (marker ? ' marked' : '');
+          if (marker) {
+            slot.style.setProperty('--mc', marker.color || '#ffffff');
+            slot.innerText = marker.icon;
             slot.disabled = true;
           } else if (o.selectable) {
             slot.innerText = '+';
@@ -1421,6 +1505,19 @@
         }
       }
 
+      // Jaartalgok: wordt automatisch gecontroleerd
+      let yg = null, yOk = false, yTok = false;
+      if (s.mode === 'teams') {
+        if (r.activeTeamId === s.teamId) { yg = r.yearGuess; yOk = r.yearCorrect; yTok = r.yearToken; }
+      } else if (r.personal) {
+        yg = r.personal.yearGuess; yOk = r.personal.yearCorrect; yTok = r.personal.yearToken;
+      }
+      if (yg !== null && yg !== undefined) {
+        html += '<br>' + (yOk
+          ? `🎯 Exact jaartal goed (${yg})! ${yTok ? '+1 fiche' : 'Je zit al op het maximum aan fiches.'}`
+          : `🎯 Jaartal: ${s.mode === 'teams' ? 'jullie gok' : 'je gok'} was ${yg}, het was ${r.track.year}.`);
+      }
+
       const tj = r.titleJudgement;
       if (tj) {
         const who = s.mode === 'teams' ? ` (${esc(tj.name)})` : '';
@@ -1446,7 +1543,7 @@
 
       // Nieuwe ronde: lokale keuzes en invulvelden wissen
       if (ui.round !== s.round) {
-        ui = { round: s.round, slotIndex: null, usedToken: false, stealMode: false, stealSlot: null, animatedRound: ui.animatedRound, sending: false };
+        ui = { round: s.round, slotIndex: null, usedToken: false, stealMode: false, stealSlot: null, animatedRound: ui.animatedRound, flipRound: ui.flipRound, sending: false };
         ['player-exact-year', 'guess-title', 'guess-artist'].forEach(id => { $(id).value = ''; });
       }
 
@@ -1459,6 +1556,7 @@
       if (submitted && active) {
         if (teamMode) {
           ui.slotIndex = tr.chosenSlot;
+          fillIfEmpty('player-exact-year', tr.myYear);
           fillIfEmpty('guess-title', tr.myTitle);
           fillIfEmpty('guess-artist', tr.myArtist);
         } else if (s.guess) {
@@ -1504,7 +1602,7 @@
         tb.innerHTML = '🪙 Zet 1 Fiche in (Dubbele Punten)';
       }
 
-      setHidden('pg-exact', teamMode || !active);
+      setHidden('pg-exact', !(s.guessYear && active && iAmActive));
       setHidden('pg-guess', !(s.guessTitle && active && iAmActive));
       $('player-exact-year').disabled = submitted;
       $('guess-title').disabled = submitted;
@@ -1517,6 +1615,25 @@
       else if (active && submitted) hint = 'Ingediend. Wachten op de uitslag…';
       else if (active && teamMode && tr && tr.myTeamActive) hint = 'Alleen de speler aan zet plaatst de kaart. Denk mee!';
       $('pg-timeline-hint').innerText = hint;
+
+      // Uitslag: dezelfde vierkante kaart als in de tijdlijn
+      const rv = revealed && s.reveal;
+      setHidden('pg-reveal', !rv);
+      if (rv) {
+        $('pg-reveal-card').setAttribute('style', cardTheme(s.reveal.track.year));
+        $('pg-reveal-artist').innerText = s.reveal.track.artist;
+        $('pg-reveal-year').innerText = s.reveal.track.year;
+        $('pg-reveal-title').innerText = s.reveal.track.title;
+        if (ui.flipRound !== s.round) {
+          ui.flipRound = s.round;
+          const c = $('pg-reveal-card');
+          c.classList.remove('flip');
+          void c.offsetWidth;
+          c.classList.add('flip');
+        }
+      }
+
+      renderBoard(s);
 
       const winKey = renderFeedback(s);
       const popKey = revealed && ui.animatedRound !== s.round ? winKey : null;
@@ -1544,30 +1661,69 @@
       }
     }
 
-    // ---------- Inbreken ----------
+    // ---------- Tijdlijn van het andere team (bord) ----------
+    // Het team dat niet aan zet is ziet altijd de tijdlijn van het team aan zet, met hun plek (📍)
+    // en, als er wordt ingebroken, de plek van de inbreker (⚡). Na de uitslag kijkt iedereen terug.
+    function renderBoard(s) {
+      const tr = s.tr;
+      const box = $('pg-board');
+      const revealed = s.phase === 'REVEALED';
+      const active = s.phase === 'ACTIVE';
+      let b = null;
+
+      if (s.mode === 'teams' && tr) {
+        if (revealed && s.reveal && s.reveal.activeTimeline && s.reveal.chosenSlot !== null) {
+          const r = s.reveal;
+          b = { timeline: r.activeTimeline, chosen: r.chosenSlot, steal: r.stealSlot, aName: r.activeTeamName, aColor: r.activeTeamColor, sName: r.stealTeamName, sColor: r.stealTeamColor, recap: true };
+        } else if (active && (!tr.myTeamActive || tr.stealStatus === 'stolen')) {
+          b = { timeline: tr.activeTimeline, chosen: tr.chosenSlot, steal: tr.stealSlot, aName: tr.activeTeamName, aColor: tr.activeColor, sName: tr.stealTeamName, sColor: tr.stealColor, recap: false };
+        }
+      }
+      if (!b || !b.timeline) {
+        box.classList.add('hidden');
+        return;
+      }
+      box.classList.remove('hidden');
+      box.style.setProperty('border-color', b.aColor);
+
+      $('board-title').innerText = b.recap
+        ? `Zo lagen de plekken in de tijdlijn van ${b.aName}`
+        : (b.chosen === null ? `Tijdlijn van ${b.aName} (zij plaatsen nu)` : `Tijdlijn van ${b.aName}`);
+      let legend = '';
+      if (b.chosen !== null) legend += `<span style="color:${b.aColor}">📍 plek van ${esc(b.aName)}</span>`;
+      if (b.steal !== null && b.steal !== undefined) legend += ` · <span style="color:${b.sColor}">⚡ plek van ${esc(b.sName)}</span>`;
+      $('board-legend').innerHTML = legend;
+
+      const markers = [];
+      if (b.chosen !== null) markers.push({ idx: b.chosen, icon: '📍', color: b.aColor });
+      if (b.steal !== null && b.steal !== undefined) markers.push({ idx: b.steal, icon: '⚡', color: b.sColor });
+
+      // Tijdens het inbreken kiest de speler zijn plek direct in deze tijdlijn
+      const selectable = active && ui.stealMode && !!tr.canSteal;
+      renderTimeline($('board-timeline'), b.timeline, {
+        selectable,
+        selectedIdx: selectable ? ui.stealSlot : null,
+        markers,
+        onPick: (i) => { ui.stealSlot = i; renderGame(ps); }
+      });
+    }
+
     function renderSteal(s) {
       const tr = s.tr;
       const box = $('pg-steal');
       if (!(tr && tr.canSteal)) {
         box.classList.add('hidden');
         ui.stealMode = false;
+        ui.stealSlot = null;
         return;
       }
       box.classList.remove('hidden');
-      $('steal-text').innerText = `${tr.activeTeamName} plaatste de kaart op de plek met 📍. Denk jij dat het ergens anders hoort? Zet 1 fiche in om in te breken. Klopt jouw plek en niet de hunne, dan komt de kaart in jullie tijdlijn.`;
+      $('steal-text').innerText = ui.stealMode
+        ? `Tik in de tijdlijn van ${tr.activeTeamName} hierboven op het + waar jij denkt dat de kaart hoort.`
+        : `${tr.activeTeamName} plaatste de kaart op de plek met 📍. Denk jij dat het ergens anders hoort? Zet 1 fiche in om in te breken. Klopt jouw plek en niet de hunne, dan komt de kaart in jullie tijdlijn.`;
       $('steal-actions').style.display = ui.stealMode ? 'none' : 'flex';
-      $('steal-picker').style.display = ui.stealMode ? 'block' : 'none';
-      if (ui.stealMode) {
-        $('steal-team-name').innerText = tr.activeTeamName;
-        renderTimeline($('steal-timeline'), tr.activeTimeline || [], {
-          selectable: true,
-          selectedIdx: ui.stealSlot,
-          markerIdx: tr.chosenSlot,
-          markerColor: tr.activeColor,
-          onPick: (i) => { ui.stealSlot = i; renderGame(ps); }
-        });
-        $('steal-confirm').disabled = ui.stealSlot === null;
-      }
+      $('steal-picker').style.display = ui.stealMode ? 'flex' : 'none';
+      $('steal-confirm').disabled = ui.stealSlot === null;
     }
 
     function startSteal() { ui.stealMode = true; ui.stealSlot = null; renderGame(ps); }
