@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Hitster Party</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#050508">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hitster">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,500;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg: #050508;
+      --card-bg: #0c0c14;
+      --card-border: #26263a;
+      --accent-pink: #ff2e93;
+      --accent-orange: #ff7a18;
+      --accent-purple: #8b5cf6;
+      --accent-cyan: #22d3ee;
+      --accent-green: #22e08a;
+      --accent-gold: #ffd23f;
+      --text: #ffffff;
+      --text-dim: #9a9ab5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background:
+        radial-gradient(circle at 12% 8%, rgba(255, 46, 147, 0.22) 0%, transparent 38%),
+        radial-gradient(circle at 92% 30%, rgba(139, 92, 246, 0.22) 0%, transparent 42%),
+        radial-gradient(circle at 20% 95%, rgba(34, 211, 238, 0.16) 0%, transparent 40%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Logo: elke letter een eigen neonkleur */
+    header { text-align: center; margin-bottom: 16px; }
+    .logo {
+      font-size: 2.7rem;
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    .logo span { text-shadow: 0 0 14px currentColor; }
+    .logo span:nth-child(1) { color: #ff2e93; }
+    .logo span:nth-child(2) { color: #ff7a18; }
+    .logo span:nth-child(3) { color: #ffd23f; }
+    .logo span:nth-child(4) { color: #22e08a; }
+    .logo span:nth-child(5) { color: #22d3ee; }
+    .logo span:nth-child(6) { color: #8b5cf6; }
+    .logo span:nth-child(7) { color: #ff2e93; }
+    .sub { color: var(--text-dim); font-size: 0.82rem; margin-top: 6px; }
+
+    /* Panelen met neon-rand */
+    .card {
+      border: 2px solid transparent;
+      background:
+        linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+        linear-gradient(135deg, var(--accent-pink), var(--accent-purple) 50%, var(--accent-cyan)) border-box;
+      border-radius: 22px;
+      padding: 20px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 0 30px rgba(139, 92, 246, 0.22), 0 16px 40px rgba(0,0,0,0.7);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    h2 { font-weight: 800; }
+
+    /* Knoppen */
+    .btn {
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+      color: white;
+      border: none;
+      padding: 14px 18px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      width: 100%;
+      box-shadow: 0 0 18px rgba(255, 46, 147, 0.4);
+      transition: transform 0.1s ease, box-shadow 0.15s ease;
+    }
+    .btn:hover { box-shadow: 0 0 26px rgba(255, 46, 147, 0.65); }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled {
+      background: #1a1a28 !important;
+      color: #5c5c78 !important;
+      box-shadow: none !important;
+      cursor: not-allowed;
+      border: 1px solid #2a2a3f !important;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent-cyan);
+      box-shadow: none;
+      border: 2px solid var(--accent-cyan);
+    }
+    .btn-secondary:hover { box-shadow: 0 0 18px rgba(34, 211, 238, 0.45); }
+    .btn-token {
+      background: linear-gradient(135deg, #f59e0b, var(--accent-gold));
+      color: #1a1200;
+      border: 2px solid #fff3b0;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      box-shadow: 0 0 16px rgba(255, 210, 63, 0.4);
+    }
+    .btn-token.active { background: var(--accent-green); color: #02130b; border-color: #b9ffd9; box-shadow: 0 0 18px rgba(34, 224, 138, 0.5); }
+    .btn-submit {
+      background: linear-gradient(135deg, #10d98a, #06b6d4);
+      color: #02130b;
+      box-shadow: 0 0 20px rgba(34, 224, 138, 0.45);
+      font-size: 1.1rem;
+    }
+    .btn-submit:hover { box-shadow: 0 0 28px rgba(34, 224, 138, 0.7); }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: 2px solid #2a2a45;
+      background: #07070d;
+      color: white;
+      font-size: 1rem;
+      text-align: center;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent-pink); box-shadow: 0 0 12px rgba(255, 46, 147, 0.35); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+
+    .pin-display {
+      font-size: 3.6rem;
+      font-weight: 900;
+      letter-spacing: 8px;
+      color: var(--accent-cyan);
+      margin: 6px 0;
+      text-shadow: 0 0 18px rgba(34, 211, 238, 0.75), 0 0 40px rgba(255, 46, 147, 0.35);
+    }
+    .badge {
+      display: inline-block;
+      padding: 5px 14px;
+      border-radius: 20px;
+      background: rgba(255, 46, 147, 0.15);
+      border: 1px solid rgba(255, 46, 147, 0.5);
+      color: #ff7ab8;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      align-self: center;
+    }
+
+    /* Vinyl */
+    .vinyl-wrapper { width: 170px; height: 170px; margin: 6px auto; display: flex; align-items: center; justify-content: center; }
+    .vinyl {
+      width: 100%; height: 100%; border-radius: 50%;
+      background:
+        conic-gradient(from 0deg, rgba(255,255,255,0) 0deg, rgba(255,255,255,0.22) 35deg, rgba(255,255,255,0) 85deg, rgba(255,255,255,0) 180deg, rgba(255,255,255,0.22) 215deg, rgba(255,255,255,0) 265deg),
+        repeating-radial-gradient(#090909 0, #090909 3px, #1d1d1d 4px, #090909 5px);
+      box-shadow: 0 0 0 3px #1c1c28, 0 0 24px rgba(255, 46, 147, 0.35), 0 8px 24px rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .vinyl.spinning { animation: spin 2.6s linear infinite, glow 1.6s ease-in-out infinite alternate; }
+    .vinyl-center {
+      width: 62px; height: 62px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-orange));
+      border: 3px solid #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 900; letter-spacing: 1px; color: #fff;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes glow {
+      from { box-shadow: 0 0 0 3px #1c1c28, 0 0 18px rgba(255, 46, 147, 0.35), 0 8px 24px rgba(0,0,0,0.8); }
+      to   { box-shadow: 0 0 0 3px #1c1c28, 0 0 40px rgba(34, 211, 238, 0.65), 0 8px 24px rgba(0,0,0,0.8); }
+    }
+
+    /* Mysterie-kaart (speler) */
+    .mystery-row { display: flex; align-items: center; gap: 12px; text-align: left; }
+    .mystery-card {
+      width: 84px; height: 84px; flex-shrink: 0; border-radius: 14px;
+      border: 2px solid transparent;
+      background:
+        linear-gradient(#08080e, #08080e) padding-box,
+        linear-gradient(135deg, var(--accent-pink), var(--accent-purple), var(--accent-cyan)) border-box;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.6rem; font-weight: 900; color: #fff;
+      text-shadow: 0 0 16px var(--accent-pink);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 10px rgba(255, 46, 147, 0.35); }
+      50% { box-shadow: 0 0 24px rgba(34, 211, 238, 0.65); }
+    }
+
+    /* Tijdlijn met vierkante Hitster-kaarten */
+    .timeline-scroll-container {
+      width: 100%;
+      overflow-x: auto;
+      padding: 12px 4px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      scroll-behavior: smooth;
+      scroll-snap-type: x proximity;
+    }
+    .timeline-scroll-container::-webkit-scrollbar { height: 6px; }
+    .timeline-scroll-container::-webkit-scrollbar-thumb { background: #2a2a45; border-radius: 3px; }
+
+    .hitster-card {
+      --c1: #8b5cf6; --c2: #3b82f6; --fg: #fff;
+      position: relative;
+      overflow: hidden;
+      min-width: 128px;
+      max-width: 128px;
+      height: 128px;
+      background: linear-gradient(145deg, var(--c1), var(--c2));
+      color: var(--fg);
+      border-radius: 12px;
+      padding: 9px 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: center;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.55);
+      flex-shrink: 0;
+      scroll-snap-align: center;
+    }
+    /* Plaat-motief in de hoek, zoals op de echte kaarten */
+    .hitster-card::before {
+      content: '';
+      position: absolute;
+      width: 150px; height: 150px;
+      right: -70px; bottom: -70px;
+      border-radius: 50%;
+      background: repeating-radial-gradient(transparent 0, transparent 7px, rgba(255,255,255,0.18) 8px, transparent 9px);
+      pointer-events: none;
+    }
+    .hitster-card > * { position: relative; }
+    .card-artist {
+      font-size: 0.62rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      line-height: 1.15;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .card-year {
+      font-size: 2.1rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+    .card-title {
+      font-size: 0.68rem;
+      font-weight: 600;
+      font-style: italic;
+      line-height: 1.15;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .hitster-card.pop { animation: popIn 0.7s cubic-bezier(.2, 1.4, .4, 1); }
+    @keyframes popIn {
+      0% { transform: scale(0.3) rotate(-8deg); opacity: 0; }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+
+    /* Invoegknoppen tussen de kaarten */
+    .timeline-slot-btn {
+      min-width: 40px;
+      height: 128px;
+      border-radius: 12px;
+      border: 2px dashed #3a3a5c;
+      background: rgba(255,255,255,0.02);
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 900;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .timeline-slot-btn:hover:not(:disabled), .timeline-slot-btn.selected {
+      border: 2px solid var(--accent-pink);
+      color: #fff;
+      background: rgba(255, 46, 147, 0.25);
+      box-shadow: 0 0 16px rgba(255, 46, 147, 0.55);
+      transform: scale(1.05);
+    }
+    .timeline-slot-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    /* Fiches */
+    .token-chips { display: flex; gap: 5px; }
+    .token-chip {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff3b0, #f59e0b);
+      border: 2px dashed #fff; box-shadow: 0 0 8px rgba(255, 210, 63, 0.6);
+    }
+    .token-chip.spent { opacity: 0.2; box-shadow: none; filter: grayscale(1); }
+
+    /* Onthulling op de host: een grote kaart die omdraait */
+    .reveal-card {
+      --c1: #8b5cf6; --c2: #3b82f6; --fg: #fff;
+      display: none;
+      background: linear-gradient(145deg, var(--c1), var(--c2));
+      color: var(--fg);
+      padding: 18px 14px 14px;
+      border-radius: 18px;
+      margin-top: 6px;
+      box-shadow: 0 0 28px rgba(255, 255, 255, 0.12), 0 10px 30px rgba(0,0,0,0.6);
+      position: relative;
+      overflow: hidden;
+    }
+    .reveal-card::before {
+      content: '';
+      position: absolute;
+      width: 320px; height: 320px;
+      right: -150px; top: -150px;
+      border-radius: 50%;
+      background: repeating-radial-gradient(transparent 0, transparent 12px, rgba(255,255,255,0.16) 13px, transparent 14px);
+      pointer-events: none;
+    }
+    .reveal-card > * { position: relative; }
+    .reveal-card.flip { animation: flipIn 0.8s ease; }
+    @keyframes flipIn {
+      0% { transform: perspective(700px) rotateY(90deg); opacity: 0; }
+      100% { transform: perspective(700px) rotateY(0); opacity: 1; }
+    }
+    .reveal-artist { font-size: 0.95rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+    .reveal-year { font-size: 4.4rem; font-weight: 900; line-height: 1; letter-spacing: -2px; margin: 6px 0; }
+    .reveal-title { font-size: 1.05rem; font-weight: 600; font-style: italic; }
+    .reveal-info {
+      font-size: 0.88rem; font-weight: 800; margin: 10px 0;
+      background: rgba(0,0,0,0.35); padding: 8px; border-radius: 10px; color: #fff;
+    }
+    .reveal-card .btn { background: #0c0c14; color: #fff; box-shadow: none; }
+
+    /* Feedback voor speler */
+    .feedback { display: none; padding: 12px; border-radius: 14px; font-size: 0.9rem; font-weight: 700; border: 2px solid; }
+    .feedback.win { background: rgba(34, 224, 138, 0.15); color: var(--accent-green); border-color: var(--accent-green); box-shadow: 0 0 16px rgba(34, 224, 138, 0.3); }
+    .feedback.lose { background: rgba(255, 46, 147, 0.15); color: #ff7ab8; border-color: var(--accent-pink); box-shadow: 0 0 16px rgba(255, 46, 147, 0.3); }
+
+    /* Spotify-koppeling (host) */
+    .spotify-box {
+      text-align: left;
+      background: #07110c;
+      border: 1px solid rgba(29, 185, 84, 0.45);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .spotify-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
+    .spotify-badge { font-size: 0.7rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; border: 1px solid; }
+    .spotify-badge.off { color: var(--text-dim); border-color: #3a3a5c; }
+    .spotify-badge.busy { color: var(--accent-gold); border-color: var(--accent-gold); }
+    .spotify-badge.on { color: #1ed760; border-color: #1ed760; box-shadow: 0 0 10px rgba(30, 215, 96, 0.35); }
+    .spotify-badge.err { color: #ff7ab8; border-color: var(--accent-pink); }
+    .spotify-info { font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; }
+    .spotify-box details { font-size: 0.78rem; color: var(--text-dim); }
+    .spotify-box summary { cursor: pointer; font-weight: 700; color: #1ed760; margin-bottom: 6px; }
+    .spotify-box ol { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .spotify-box input { font-size: 0.78rem; padding: 8px; text-align: left; margin-bottom: 6px; }
+    .spotify-box label { display: block; font-weight: 700; margin: 4px 0 3px; }
+    .spotify-box code { background: #0c0c14; padding: 1px 5px; border-radius: 4px; color: #fff; }
+    .btn-spotify { background: #1ed760; color: #02130b; border: none; box-shadow: 0 0 16px rgba(30, 215, 96, 0.35); }
+    .btn-spotify:hover { box-shadow: 0 0 24px rgba(30, 215, 96, 0.6); }
+    .host-source { font-size: 0.75rem; color: var(--text-dim); min-height: 1.1em; }
+    .host-source.warn { color: var(--accent-gold); }
+    .spotify-overlay {
+      position: fixed; inset: 0; z-index: 99; background: var(--bg);
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      padding: 24px; font-weight: 800; font-size: 1.1rem; color: #1ed760;
+    }
+
+    /* ===== Teams, instellingen, banners ===== */
+    .banner {
+      --bc: var(--accent-purple);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 0.88rem;
+      line-height: 1.35;
+      text-align: center;
+      color: #fff;
+      background: #0b0b14;
+      border: 2px solid var(--bc);
+      box-shadow: 0 0 14px var(--bc);
+    }
+    .conn-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 98;
+      padding: max(6px, env(safe-area-inset-top)) 10px 6px;
+      background: var(--accent-gold); color: #1a1200;
+      text-align: center; font-weight: 800; font-size: 0.8rem;
+    }
+    .notice { display: none; font-size: 0.82rem; }
+
+    .setting-label { font-size: 0.78rem; color: var(--text-dim); text-align: left; font-weight: 700; margin-bottom: 5px; }
+    .seg { display: flex; gap: 6px; }
+    .seg-btn {
+      flex: 1; padding: 10px 8px; border-radius: 12px;
+      border: 2px solid #2a2a45; background: #07070d; color: var(--text-dim);
+      font-weight: 800; font-size: 0.9rem; cursor: pointer;
+    }
+    .seg-btn.active {
+      border-color: var(--accent-pink); color: #fff;
+      background: rgba(255, 46, 147, 0.18); box-shadow: 0 0 14px rgba(255, 46, 147, 0.35);
+    }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; font-size: 0.85rem; }
+    .setting-row select { width: auto; min-width: 150px; padding: 8px; }
+    .check-row { display: flex; gap: 10px; align-items: flex-start; text-align: left; font-size: 0.85rem; cursor: pointer; }
+    .check-row input { width: 20px; height: 20px; padding: 0; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent-pink); }
+
+    .team-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+    .team-col {
+      --tc: var(--accent-purple);
+      border: 2px solid var(--tc); border-radius: 14px; padding: 8px;
+      background: #07070d; min-height: 84px; text-align: left;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.05);
+    }
+    .team-col h4 { color: var(--tc); font-size: 0.82rem; margin-bottom: 6px; font-weight: 800; }
+    .player-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #0c0c14; border: 1px solid var(--accent-purple);
+      padding: 6px 10px; border-radius: 10px; font-size: 0.82rem; font-weight: 700; margin: 2px;
+    }
+    .player-chip.clickable { cursor: pointer; }
+    .player-chip.off { opacity: 0.45; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); flex-shrink: 0; }
+    .dot.off { background: #555; }
+
+    /* Titel & artiest raden */
+    .guess-box { background: #07070d; border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+    .guess-box .gl { font-size: 0.78rem; font-weight: 800; color: var(--accent-cyan); }
+    .guess-box input { text-align: left; padding: 10px; font-size: 0.9rem; }
+
+    /* Inbreken */
+    .steal-box {
+      border: 2px solid var(--accent-gold); border-radius: 14px; padding: 12px;
+      background: rgba(255, 210, 63, 0.07); box-shadow: 0 0 16px rgba(255, 210, 63, 0.25);
+      display: flex; flex-direction: column; gap: 8px; text-align: left;
+    }
+    .steal-box .st { font-weight: 800; color: var(--accent-gold); }
+    .steal-box p { font-size: 0.82rem; color: #e8e8f5; line-height: 1.4; }
+    .steal-actions { display: flex; gap: 8px; }
+    .steal-actions .btn { padding: 12px 8px; font-size: 0.9rem; }
+    .timeline-slot-btn.marked { border: 2px solid var(--mc, #fff); color: #fff; background: rgba(255, 255, 255, 0.06); box-shadow: 0 0 12px var(--mc, #fff); cursor: default; }
+
+    /* Scorebord (host) */
+    .scoreboard { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+    .sb-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #07070d; border: 1px solid var(--card-border); border-radius: 10px; padding: 8px 10px; font-size: 0.85rem; font-weight: 700; }
+    .sb-row.team { border: 2px solid var(--tc); box-shadow: 0 0 10px rgba(255, 255, 255, 0.05); }
+    .sb-row .sub { font-weight: 600; font-size: 0.72rem; color: var(--text-dim); display: block; }
+    .sb-title { font-size: 0.78rem; color: var(--text-dim); font-weight: 800; text-align: left; }
+
+    /* Beoordelingspaneel (host) */
+    .judge-panel { background: rgba(0, 0, 0, 0.4); border-radius: 12px; padding: 10px; text-align: left; display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+    .judge-head { font-size: 0.8rem; font-weight: 800; }
+    .judge-row { background: rgba(0, 0, 0, 0.45); border-radius: 10px; padding: 8px 10px; font-size: 0.85rem; line-height: 1.4; }
+    .judge-row .who { font-weight: 800; }
+    .judge-row .hint { font-size: 0.72rem; font-weight: 800; color: var(--accent-green); }
+    .judge-row .hint.no { color: #ffb4b4; }
+    .judge-actions { display: flex; gap: 8px; margin-top: 6px; }
+    .judge-actions button { flex: 1; padding: 9px; border-radius: 10px; border: none; font-weight: 800; cursor: pointer; font-size: 0.85rem; }
+    .judge-ok { background: var(--accent-green); color: #02130b; }
+    .judge-no { background: #3a1020; color: #ffb4c8; border: 1px solid var(--accent-pink); }
+    .judge-done { font-weight: 800; font-size: 0.8rem; margin-top: 4px; }
+
+    .winner-banner {
+      text-align: center; padding: 14px; border-radius: 16px; font-size: 1.15rem; font-weight: 900;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange)); color: #1a1200;
+      box-shadow: 0 0 24px rgba(255, 210, 63, 0.5);
+    }
+    .link-btn { background: none; border: none; color: var(--text-dim); text-decoration: underline; cursor: pointer; font-size: 0.8rem; padding: 4px; }
+    .small-btn { padding: 10px; font-size: 0.85rem; }
+
+    .hidden { display: none !important; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="conn-bar" class="conn-bar hidden">Verbinding weg, opnieuw verbinden…</div>
+
+  <header>
+    <h1 class="logo" aria-label="Hitster"><span>H</span><span>I</span><span>T</span><span>S</span><span>T</span><span>E</span><span>R</span></h1>
+    <p class="sub">Muziek & Tijdlijn Partyspel</p>
+  </header>
+
+  <!-- 0. TERUG NAAR JE SPEL (sessieherstel) -->
+  <div id="view-loading" class="card hidden">
+    <div class="badge">Verbinden</div>
+    <h2>Terug naar je spel…</h2>
+    <p style="color: var(--text-dim); font-size: 0.88rem;">Even geduld, we zoeken je plek weer op.</p>
+  </div>
+
+  <!-- 1. STARTMENU -->
+  <div id="view-menu" class="card">
+    <div class="badge">Welkom</div>
+    <h2>Kies je Rol</h2>
+    <p style="color: var(--text-dim); font-size: 0.88rem;">Zet de Host op je tv, laptop of centrale telefoon. Spelers bouwen hun tijdlijn op hun eigen mobiel!</p>
+    <div id="menu-notice" class="feedback lose notice"></div>
+    <button class="btn" onclick="startHost()">🎮 Host een Spel</button>
+    <button class="btn btn-secondary" onclick="showPlayerJoin()">📱 Doe mee als Speler</button>
+    <button id="install-btn" class="btn btn-secondary hidden" onclick="installApp()">📲 Installeer als app</button>
+    <p id="ios-hint" class="spotify-info hidden">Op iPhone of iPad: tik op Deel (het vierkantje met pijl) en kies <strong>Zet op beginscherm</strong>.</p>
+  </div>
+
+  <!-- 2. SPELER LOGIN -->
+  <div id="view-player-join" class="card hidden">
+    <div class="badge">Deelnemen</div>
+    <h2>Voer Kamer PIN in</h2>
+    <input type="text" id="player-name" placeholder="Jouw Naam (bijv. Erjan)" maxlength="15">
+    <input type="tel" id="room-pin" placeholder="4-cijferige PIN" maxlength="4">
+    <button class="btn" onclick="joinRoom()">Kamer Binnengaan</button>
+    <button class="btn btn-secondary" onclick="showView('view-menu')">Terug</button>
+  </div>
+
+  <!-- 3. HOST LOBBY -->
+  <div id="view-host-lobby" class="card hidden" style="max-width: 520px;">
+    <div class="badge">Lobby Beheer</div>
+    <p style="color: var(--text-dim); font-size: 0.85rem;">Deel deze PIN met spelers:</p>
+    <div id="host-pin-display" class="pin-display">----</div>
+
+    <div>
+      <div class="setting-label">Spelmodus</div>
+      <div class="seg">
+        <button id="mode-solo" class="seg-btn active" onclick="setMode('solo')">👤 Individueel</button>
+        <button id="mode-teams" class="seg-btn" onclick="setMode('teams')">👥 Teams</button>
+      </div>
+      <p id="mode-help" class="spotify-info" style="margin-top: 6px; text-align: left;"></p>
+    </div>
+
+    <div class="setting-row">
+      <label for="target-select">Winnaar bij</label>
+      <select id="target-select" onchange="pushSettings()">
+        <option value="5">5 kaarten</option>
+        <option value="7">7 kaarten</option>
+        <option value="10" selected>10 kaarten</option>
+        <option value="15">15 kaarten</option>
+        <option value="20">20 kaarten</option>
+        <option value="0">Geen limiet</option>
+      </select>
+    </div>
+
+    <label class="check-row">
+      <input type="checkbox" id="guess-title-check" checked onchange="pushSettings()">
+      <span>Titel &amp; artiest raden toestaan. Goed geraden (door de host goedgekeurd) = +1 fiche.</span>
+    </label>
+
+    <label style="font-size: 0.8rem; color: var(--text-dim); text-align: left;">Kies Hitster Editie / Categorie:</label>
+    <select id="category-select" onchange="pushSettings()">
+      <option value="original">Hitster Original (Klassiekers & Wereldhits)</option>
+      <option value="guilty">Hitster Guilty Pleasures (Fout & Meezingers)</option>
+      <option value="rock">Hitster Rock Classics (Rock, Metal & Gitaar)</option>
+      <option value="nederpop">Hitster Nederpop (100% Nederlandse Hits)</option>
+      <option value="summer">Hitster Summer Party (Zomer- & Strandhits)</option>
+      <option value="80s90s">Hitster 80s & 90s Edition</option>
+      <option value="00s10s">Hitster 00s & 10s Millennium</option>
+    </select>
+
+    <!-- Spotify (optioneel) -->
+    <div class="spotify-box">
+      <div class="spotify-head">
+        <span>🎧 Spotify</span>
+        <span id="spotify-badge" class="spotify-badge off">Niet verbonden</span>
+      </div>
+      <p id="spotify-info" class="spotify-info">Speel volledige nummers af in plaats van previews van 30 seconden. Alleen de host heeft Spotify Premium nodig, spelers niet. Zonder koppeling gebruikt het spel gewoon iTunes-previews.</p>
+      <details id="spotify-setup">
+        <summary>Instellingen voor de eigenaar van de Spotify-app</summary>
+        <ol>
+          <li>Zet de Redirect-URI hieronder bij <strong>Redirect URIs</strong> in de Spotify-app (<code>developer.spotify.com/dashboard</code>).</li>
+          <li>Voeg het Spotify-account van elke host toe onder <strong>User Management</strong> (maximaal 5 accounts).</li>
+          <li>Open het spel als host via https, of via <code>http://127.0.0.1:3000</code>. Niet via localhost of een netwerk-IP.</li>
+        </ol>
+        <label for="spotify-redirect">Redirect-URI</label>
+        <input type="text" id="spotify-redirect" readonly onclick="this.select()">
+      </details>
+      <button id="spotify-connect-btn" class="btn btn-spotify" onclick="spotifyConnectClick()">Verbind met Spotify</button>
+    </div>
+
+
+    <div style="font-size: 0.95rem; font-weight: 800; text-align: left; margin-top: 4px;">Spelers in de lobby:</div>
+    <div id="host-lobby-players" style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 40px;"></div>
+    <button id="shuffle-btn" class="btn btn-secondary small-btn hidden" onclick="shuffleTeams()">🔀 Teams willekeurig verdelen</button>
+
+    <div id="start-error" class="feedback lose"></div>
+    <button class="btn" onclick="hostStartGame()">Start het Spel 🚀</button>
+    <button class="link-btn" onclick="closeRoom()">Spel afsluiten</button>
+  </div>
+
+  <!-- 4. SPELER WACHTRUIMTE -->
+  <div id="view-player-waiting" class="card hidden">
+    <div class="badge">Verbonden</div>
+    <h2 id="waiting-greeting">Welkom!</h2>
+    <div id="waiting-team" class="banner hidden"></div>
+    <p id="waiting-sub" style="color: var(--text-dim);">Je zit in de sessie.</p>
+    <div id="waiting-host-away" class="feedback lose">De host is even weg… even geduld.</div>
+    <div id="waiting-msg" style="font-size: 1.1rem; color: var(--accent-cyan); margin: 14px 0; font-weight: bold;">
+      ⏳ Wachten tot de host het spel start...
+    </div>
+    <button class="link-btn" onclick="leaveGame()">Spel verlaten</button>
+  </div>
+
+  <!-- 5. HOST SPEL SCHERM -->
+  <div id="view-host-game" class="card hidden" style="max-width: 520px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span class="badge">Host Bediening</span>
+      <span id="host-submitted-status" style="font-size: 0.85rem; color: var(--accent-gold); font-weight: bold;"></span>
+    </div>
+
+    <div id="host-round-banner" class="banner hidden"></div>
+
+    <div class="vinyl-wrapper">
+      <div id="vinyl-disc" class="vinyl">
+        <div class="vinyl-center">HIT</div>
+      </div>
+    </div>
+
+    <div id="host-source" class="host-source"></div>
+
+    <audio id="host-audio-player" preload="auto"></audio>
+    <button id="host-play-btn" class="btn" onclick="hostToggleAudio()">▶ Speel Preview (30s)</button>
+
+    <button id="host-reveal-btn" class="btn btn-secondary" onclick="hostReveal()" disabled>
+      Wachten op spelers...
+    </button>
+    <button id="host-force-reveal" class="link-btn hidden" onclick="hostReveal()">Toch onthullen</button>
+
+    <div id="host-reveal-box" class="reveal-card">
+      <div id="reveal-artist" class="reveal-artist">-</div>
+      <div id="reveal-year" class="reveal-year">----</div>
+      <div id="reveal-title" class="reveal-title">-</div>
+      <div id="reveal-exact-info" class="reveal-info"></div>
+      <div id="judge-panel" class="judge-panel hidden"></div>
+    </div>
+
+    <button id="host-next-btn" class="btn hidden" onclick="hostFetchAndPlayNext()">Volgend Nummer 🎵</button>
+
+    <div id="host-winner" class="winner-banner hidden"></div>
+    <div id="host-scoreboard" class="scoreboard"></div>
+    <button class="link-btn" onclick="closeRoom()">Spel afsluiten</button>
+  </div>
+
+  <!-- 6. SPELER CONTROLLER MET HITSTER TIJDLIJN -->
+  <div id="view-player-game" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span id="pg-badge" class="badge">Jouw Beurt</span>
+      <span id="player-score" style="font-weight: 800; color: var(--accent-gold);">Score: 2</span>
+    </div>
+
+    <div id="pg-host-away" class="feedback lose">De host is even weg… even geduld.</div>
+    <div id="pg-banner" class="banner hidden"></div>
+
+    <!-- Mysterie-kaart -->
+    <div id="pg-mystery" class="mystery-row">
+      <div class="mystery-card">?</div>
+      <div>
+        <div style="font-weight: 800;">Welk jaar is dit nummer?</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim);">Luister naar de host en plaats de kaart in de tijdlijn.</div>
+      </div>
+    </div>
+
+    <!-- Fiches Bar -->
+    <div id="pg-tokens-bar" style="display: flex; justify-content: space-between; align-items: center; background: #07070d; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--card-border);">
+      <span id="pg-tokens-label" style="font-size: 0.8rem; font-weight: bold; color: var(--accent-gold);">Hitster Fiches:</span>
+      <div id="player-tokens-box" class="token-chips"></div>
+    </div>
+
+    <button id="btn-use-token" class="btn btn-token" onclick="togglePlayerToken()">🪙 Zet 1 Fiche in (Dubbele Punten)</button>
+
+    <!-- Exact Jaartal (alleen individueel) -->
+    <div id="pg-exact" style="background: #07070d; border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; text-align: left;">
+      <div style="font-size: 0.78rem; font-weight: bold; color: var(--accent-gold); margin-bottom: 6px;">🎯 Weet je het exacte jaartal? (Optioneel)</div>
+      <input type="number" id="player-exact-year" placeholder="bijv. 1984" min="1950" max="2026">
+    </div>
+
+    <!-- Titel & artiest raden -->
+    <div id="pg-guess" class="guess-box">
+      <div class="gl">🎤 Weet je titel én artiest? Goed = +1 fiche (de host keurt het goed)</div>
+      <input type="text" id="guess-title" placeholder="Titel" maxlength="80" autocomplete="off">
+      <input type="text" id="guess-artist" placeholder="Artiest" maxlength="80" autocomplete="off">
+    </div>
+
+    <div style="text-align: left;">
+      <div id="pg-timeline-label" style="font-size: 0.8rem; color: var(--text-dim); font-weight: bold;">Jouw Hitster Tijdlijn</div>
+      <p id="pg-timeline-hint" style="font-size: 0.75rem; color: var(--text-dim);"></p>
+    </div>
+
+    <!-- Scrollbare Hitster Kaarten Tijdlijn -->
+    <div id="player-timeline-scroll" class="timeline-scroll-container"></div>
+
+    <!-- Inbreken (alleen teams, voor het team dat NIET aan zet is) -->
+    <div id="pg-steal" class="steal-box hidden">
+      <div class="st">⚡ Inbreken?</div>
+      <p id="steal-text"></p>
+      <div id="steal-actions" class="steal-actions">
+        <button class="btn btn-token" onclick="startSteal()">⚡ Inbreken (1 fiche)</button>
+        <button class="btn btn-secondary" onclick="passSteal()">Laat maar</button>
+      </div>
+      <div id="steal-picker" style="display: none;">
+        <p style="margin-bottom: 6px;">Kies waar jij denkt dat de kaart hoort in de tijdlijn van <strong id="steal-team-name"></strong>:</p>
+        <div id="steal-timeline" class="timeline-scroll-container"></div>
+        <div class="steal-actions">
+          <button id="steal-confirm" class="btn btn-submit" onclick="confirmSteal()" disabled>⚡ Bevestig inbraak</button>
+          <button class="btn btn-secondary" onclick="cancelSteal()">Annuleren</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bevestigen Knop -->
+    <button id="btn-submit-turn" class="btn btn-submit" onclick="submitPlayerTurn()">
+      ✅ Keuze Indienen
+    </button>
+
+    <!-- Uitslag Pop-up / Feedback -->
+    <div id="player-feedback-msg" class="feedback"></div>
+    <div id="pg-winner" class="winner-banner hidden"></div>
+    <button class="link-btn" onclick="leaveGame()">Spel verlaten</button>
+  </div>
+
+  <script>
+    const socket = io();
+    let currentPin = null;
+    let isHost = false;
+    let ps = null;   // laatste spelerstatus van de server
+    let hs = null;   // laatste hoststatus van de server
+
+    // Lokale keuzes van de speler in de lopende ronde (nog niet ingediend)
+    let ui = { round: null, slotIndex: null, usedToken: false, stealMode: false, stealSlot: null, animatedRound: null, sending: false };
+
+    let hostMode = 'solo';
+    let hostInitialized = false;
+    let pendingAutoStart = false;
+    let hostBusy = false;
+    let hostAnimRound = null;
+
+    // Na het inloggen bij Spotify komt het popup-venster hier terug; dat venster mag geen spel hervatten
+    const IS_AUTH_REDIRECT = /[?&](code|error)=/.test(window.location.search);
+
+    const $ = (id) => document.getElementById(id);
+    const setHidden = (id, hidden) => $(id).classList.toggle('hidden', !!hidden);
+
+    // Voorkomt dat titels/namen als HTML worden uitgevoerd
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // Kaartkleur per decennium, zoals de verschillende kleuren op de echte Hitster-kaarten
+    function cardTheme(year) {
+      let c1, c2, fg = '#ffffff';
+      if (year < 1970)      { c1 = '#f59e0b'; c2 = '#ef4444'; }
+      else if (year < 1980) { c1 = '#ff7a18'; c2 = '#ff2e63'; }
+      else if (year < 1990) { c1 = '#ff2e93'; c2 = '#a21caf'; }
+      else if (year < 2000) { c1 = '#8b5cf6'; c2 = '#3b82f6'; }
+      else if (year < 2010) { c1 = '#06b6d4'; c2 = '#2563eb'; }
+      else if (year < 2020) { c1 = '#10b981'; c2 = '#0891b2'; }
+      else                  { c1 = '#facc15'; c2 = '#fb923c'; fg = '#1a1200'; }
+      return `--c1:${c1};--c2:${c2};--fg:${fg};`;
+    }
+
+    const VIEWS = ['view-loading', 'view-menu', 'view-player-join', 'view-host-lobby', 'view-player-waiting', 'view-host-game', 'view-player-game'];
+    function showView(id) {
+      VIEWS.forEach(v => $(v).classList.add('hidden'));
+      $(id).classList.remove('hidden');
+    }
+
+    // =====================================================================
+    // SESSIEHERSTEL
+    // Wie de pagina ververst (of even geen verbinding had) komt terug waar hij was.
+    // De sessie staat in sessionStorage (per tabblad) en localStorage (als vangnet).
+    // =====================================================================
+    const SESSION_KEY = 'hitster_session_v1';
+    const NOTICE_KEY = 'hitster_notice';
+    function saveSession(o) {
+      const raw = JSON.stringify(o);
+      try { sessionStorage.setItem(SESSION_KEY, raw); } catch (e) {}
+      try { localStorage.setItem(SESSION_KEY, raw); } catch (e) {}
+    }
+    function loadSession() {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    }
+    function clearSession() {
+      try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+      try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+    }
+    function showMenuNotice(text) {
+      const n = $('menu-notice');
+      n.innerText = text;
+      n.style.display = 'block';
+    }
+    function backToMenuPage(delay) {
+      setTimeout(() => { window.location.href = window.location.pathname; }, delay || 0);
+    }
+
+    socket.on('connect', () => {
+      $('conn-bar').classList.add('hidden');
+      if (IS_AUTH_REDIRECT) return;
+      const s = loadSession();
+      if (!s) return;
+      if (s.role === 'host') socket.emit('resume_host', { pin: s.pin, hostToken: s.hostToken });
+      else socket.emit('resume_player', { pin: s.pin, playerId: s.playerId });
+    });
+    socket.on('disconnect', () => {
+      if (!IS_AUTH_REDIRECT) $('conn-bar').classList.remove('hidden');
+    });
+
+    socket.on('resume_failed', () => {
+      clearSession();
+      isHost = false; ps = null; hs = null;
+      showView('view-menu');
+      showMenuNotice('Je vorige spel bestaat niet meer (bijvoorbeeld doordat de server is herstart). Start of join een nieuw spel.');
+    });
+
+    socket.on('room_closed', () => {
+      clearSession();
+      try { sessionStorage.setItem(NOTICE_KEY, 'Het spel is gestopt.'); } catch (e) {}
+      backToMenuPage(0);
+    });
+
+    if (!IS_AUTH_REDIRECT) {
+      let pending = null;
+      try { pending = sessionStorage.getItem(NOTICE_KEY); sessionStorage.removeItem(NOTICE_KEY); } catch (e) {}
+      if (pending) showMenuNotice(pending);
+      if (loadSession()) {
+        showView('view-loading');
+        // Lukt het niet (bijv. server slaapt nog), toon dan gewoon het menu
+        setTimeout(() => { if (!$('view-loading').classList.contains('hidden')) showView('view-menu'); }, 12000);
+      }
+    }
+
+    // =====================================================================
+    // HOST
+    // =====================================================================
+    function startHost() {
+      isHost = true;
+      socket.emit('create_room');
+    }
+
+    socket.on('room_created', ({ pin, hostToken }) => {
+      currentPin = pin;
+      saveSession({ role: 'host', pin, hostToken });
+    });
+
+    socket.on('host_state', (s) => {
+      isHost = true;
+      hs = s;
+      currentPin = s.pin;
+      if (!hostInitialized) {
+        hostInitialized = true;
+        applySettingsToControls(s.settings);
+        spotifyInitLobby();
+        startKeepAlive();
+      }
+      renderHost();
+    });
+
+    socket.on('start_error', (msg) => {
+      pendingAutoStart = false;
+      const e = $('start-error');
+      e.innerText = msg;
+      e.style.display = 'block';
+    });
+
+    function applySettingsToControls(st) {
+      hostMode = st.mode;
+      $('target-select').value = String(st.target);
+      $('guess-title-check').checked = !!st.guessTitle;
+      $('category-select').value = st.category;
+    }
+
+    function pushSettings() {
+      socket.emit('update_settings', {
+        mode: hostMode,
+        target: Number($('target-select').value),
+        guessTitle: $('guess-title-check').checked,
+        category: $('category-select').value
+      });
+    }
+    function setMode(m) { hostMode = m; pushSettings(); }
+    function shuffleTeams() { socket.emit('shuffle_teams'); }
+    function moveToTeam(playerId, teamId) { socket.emit('set_team', { playerId, teamId }); }
+
+    function hostStartGame() {
+      $('start-error').style.display = 'none';
+      pendingAutoStart = true;
+      socket.emit('start_game');
+    }
+
+    function closeRoom() {
+      if (!confirm('Het spel afsluiten voor iedereen?')) return;
+      socket.emit('close_room');
+      clearSession();
+      backToMenuPage(200);
+    }
+
+    function renderHost() {
+      if (!hs) return;
+      if (hs.state === 'LOBBY') {
+        showView('view-host-lobby');
+        renderHostLobby(hs);
+      } else {
+        showView('view-host-game');
+        renderHostGame(hs);
+      }
+      // Na "Start het Spel" meteen het eerste nummer kiezen
+      if (hs.state === 'GAME' && hs.phase === 'IDLE' && pendingAutoStart) {
+        pendingAutoStart = false;
+        hostFetchAndPlayNext();
+      }
+    }
+
+    function renderHostLobby(s) {
+      const teamMode = s.settings.mode === 'teams';
+      $('host-pin-display').innerText = s.pin;
+      $('mode-solo').classList.toggle('active', !teamMode);
+      $('mode-teams').classList.toggle('active', teamMode);
+      $('mode-help').innerText = teamMode
+        ? 'Twee teams delen een tijdlijn en fiches. De teams zijn om de beurt aan zet. Met een fiche kan het andere team inbreken.'
+        : 'Iedereen speelt voor zichzelf, met een eigen tijdlijn.';
+      setHidden('shuffle-btn', !teamMode);
+
+      const box = $('host-lobby-players');
+      if (!teamMode) {
+        box.innerHTML = s.players.length
+          ? s.players.map(p => `<span class="player-chip ${p.connected ? '' : 'off'}"><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}</span>`).join('')
+          : '<span class="spotify-info">Nog geen spelers…</span>';
+      } else {
+        box.innerHTML = '<div class="team-cols">' + s.teams.map(t => `
+          <div class="team-col" style="--tc:${t.color}">
+            <h4>${esc(t.name)} (${t.members.length})</h4>
+            ${t.members.map(m => `<span class="player-chip clickable ${m.connected ? '' : 'off'}" onclick="moveToTeam('${m.id}', '${t.id === 'A' ? 'B' : 'A'}')"><span class="dot ${m.connected ? '' : 'off'}"></span>${esc(m.name)}</span>`).join('') || '<span class="spotify-info">Leeg</span>'}
+          </div>`).join('') + '</div><p class="spotify-info" style="width:100%">Tik op een speler om van team te wisselen.</p>';
+      }
+    }
+
+    function teamOutcomeText(r) {
+      if (r.outcome === 'active') {
+        return `✅ ${r.activeTeamName} had het goed.` + (r.stealStatus === 'stolen' ? ` De inbraak van ${r.stealTeamName} mislukte (fiche kwijt).` : '');
+      }
+      if (r.outcome === 'stolen') return `⚡ ${r.stealTeamName} brak in en pakt de kaart!`;
+      return '❌ Niemand had het goed.' + (r.stealStatus === 'stolen' ? ` Ook de inbraak van ${r.stealTeamName} klopte niet.` : '') + ' De kaart verdwijnt.';
+    }
+
+    function renderHostGame(s) {
+      const teamMode = s.settings.mode === 'teams';
+      const idle = s.phase === 'IDLE', active = s.phase === 'ACTIVE', revealed = s.phase === 'REVEALED';
+      const over = s.state === 'OVER';
+
+      syncHostTrack(s.track, s.round);
+
+      // Status rechtsboven
+      let st = '';
+      if (active) {
+        st = teamMode ? (s.tr && s.tr.submitted ? '✅ geplaatst' : '⏳ wacht op plaatsing') : `${s.status.submitted}/${s.status.total} ingediend`;
+      }
+      $('host-submitted-status').innerText = st;
+
+      // Wie is aan zet
+      const banner = $('host-round-banner');
+      if (idle) {
+        banner.classList.add('hidden');
+      } else {
+        banner.classList.remove('hidden');
+        if (teamMode && s.tr) {
+          banner.style.setProperty('--bc', s.tr.activeColor);
+          let txt = `Ronde ${s.round} · ${s.tr.activeTeamName} is aan zet (${s.tr.activePlayerName})`;
+          if (active && s.tr.submitted) {
+            if (s.tr.stealStatus === 'pending') txt += ` · ${s.tr.oppTeamName} beslist over inbreken…`;
+            else if (s.tr.stealStatus === 'stolen') txt += ` · ⚡ ${s.tr.stealTeamName} breekt in!`;
+            else txt += ' · geen inbraak';
+          }
+          banner.innerText = txt;
+        } else {
+          banner.style.setProperty('--bc', '#8b5cf6');
+          banner.innerText = `Ronde ${s.round}`;
+        }
+      }
+
+      setHidden('host-play-btn', idle);
+
+      // Onthullen
+      const rb = $('host-reveal-btn');
+      if (active) {
+        rb.classList.remove('hidden');
+        if (s.status.allReady) {
+          rb.disabled = false;
+          rb.innerText = 'Onthul Kaart & Scores 👀';
+          rb.classList.add('btn-submit');
+          setHidden('host-force-reveal', true);
+        } else {
+          rb.disabled = true;
+          rb.classList.remove('btn-submit');
+          if (teamMode && s.tr) {
+            rb.innerText = s.tr.submitted ? `Wachten op inbreken van ${s.tr.oppTeamName}…` : `Wachten op ${s.tr.activePlayerName}…`;
+          } else {
+            rb.innerText = `Wachten (${s.status.submitted}/${s.status.total} klaar)...`;
+          }
+          setHidden('host-force-reveal', false);
+        }
+      } else {
+        rb.classList.add('hidden');
+        setHidden('host-force-reveal', true);
+      }
+
+      // Uitslagkaart + beoordelen
+      const box = $('host-reveal-box');
+      if (revealed && s.reveal) {
+        const r = s.reveal;
+        box.setAttribute('style', cardTheme(r.track.year));
+        box.style.display = 'block';
+        $('reveal-title').innerText = r.track.title;
+        $('reveal-artist').innerText = r.track.artist;
+        $('reveal-year').innerText = r.track.year;
+        $('reveal-exact-info').innerHTML = teamMode
+          ? esc(teamOutcomeText(r))
+          : (r.exactWinners.length
+              ? `🎯 EXACT GERADEN DOOR: ${r.exactWinners.map(esc).join(', ')}!<br>(Alleen zij winnen deze ronde!)`
+              : 'Niemand had het exacte jaartal goed. Juiste tijdlijnen scoren!');
+        if (hostAnimRound !== s.round) {
+          hostAnimRound = s.round;
+          box.classList.remove('flip');
+          void box.offsetWidth;
+          box.classList.add('flip');
+        }
+        renderJudgePanel(s);
+      } else {
+        box.style.display = 'none';
+      }
+
+      // Volgend nummer / einde
+      const nb = $('host-next-btn');
+      setHidden('host-next-btn', over || !(idle || revealed));
+      nb.disabled = hostBusy;
+      nb.innerText = idle ? 'Start eerste nummer 🎵' : 'Volgend Nummer 🎵';
+
+      const wb = $('host-winner');
+      if (s.winner) {
+        wb.classList.remove('hidden');
+        wb.innerText = '🏆 ' + s.winner.names.join(' & ') + (s.winner.names.length > 1 ? ' winnen' : ' wint') + '!';
+      } else {
+        wb.classList.add('hidden');
+      }
+
+      renderScoreboard(s);
+    }
+
+    function renderJudgePanel(s) {
+      const panel = $('judge-panel');
+      const list = s.judgements || [];
+      const teamMode = s.settings.mode === 'teams';
+      if (!list.length) {
+        panel.classList.add('hidden');
+        panel.innerHTML = '';
+        return;
+      }
+      panel.classList.remove('hidden');
+      panel.innerHTML = '<div class="judge-head">🎤 Titel &amp; artiest geraden? Beoordeel (goed = +1 fiche)</div>' + list.map(j => {
+        const th = j.title ? `<span class="hint ${j.suggestTitle ? '' : 'no'}">${j.suggestTitle ? '✓ lijkt goed' : '✗ wijkt af'}</span>` : '';
+        const ah = j.artist ? `<span class="hint ${j.suggestArtist ? '' : 'no'}">${j.suggestArtist ? '✓ lijkt goed' : '✗ wijkt af'}</span>` : '';
+        const teamName = teamMode && s.teams ? (s.teams.find(t => t.id === j.teamId) || {}).name : '';
+        const actions = j.status === 'pending'
+          ? `<div class="judge-actions"><button class="judge-ok" onclick="judge('${j.playerId}', true)">✅ Goed (+1 fiche)</button><button class="judge-no" onclick="judge('${j.playerId}', false)">❌ Fout</button></div>`
+          : `<div class="judge-done">${j.status === 'approved' ? '✅ Goedgekeurd: +1 fiche' : '❌ Afgekeurd'}</div>`;
+        return `<div class="judge-row"><span class="who">${esc(j.name)}${teamName ? ' (' + esc(teamName) + ')' : ''}</span><br>
+          Titel: «${esc(j.title || '—')}» ${th}<br>Artiest: «${esc(j.artist || '—')}» ${ah}${actions}</div>`;
+      }).join('');
+    }
+    function judge(playerId, approved) { socket.emit('judge_title', { playerId, approved }); }
+
+    function renderScoreboard(s) {
+      const box = $('host-scoreboard');
+      const goal = s.settings.target ? ` / ${s.settings.target}` : '';
+      if (s.settings.mode === 'teams' && s.teams) {
+        box.innerHTML = '<div class="sb-title">Stand</div>' + s.teams.map(t => `
+          <div class="sb-row team" style="--tc:${t.color}">
+            <span><span style="color:${t.color}">${esc(t.name)}</span><span class="sub">${t.members.map(m => esc(m.name) + (m.connected ? '' : ' (weg)')).join(', ')}</span></span>
+            <span>${t.count}${goal} kaarten · 🪙${t.tokens}</span>
+          </div>`).join('');
+      } else {
+        const rows = [...s.players].sort((a, b) => b.count - a.count || b.score - a.score);
+        box.innerHTML = '<div class="sb-title">Stand</div>' + rows.map(p => `
+          <div class="sb-row">
+            <span>${esc(p.name)}${p.connected ? '' : ' <span class="sub" style="display:inline">(weg)</span>'}</span>
+            <span>${p.count}${goal} kaarten · ${p.score}★ · 🪙${p.tokens}</span>
+          </div>`).join('');
+      }
+    }
+
+    // ---------- Nummers kiezen en afspelen ----------
+    // Hitster Categorieën & iTunes Zoektermen
+    const CATEGORY_SEARCH = {
+      original: ["top hits", "billboard classics", "pop classics", "world hits"],
+      guilty: ["guilty pleasures", "meezingers", "90s party hits", "eurodance", "boybands hits"],
+      rock: ["rock classics", "hard rock hits", "alternative rock classics", "guitar anthems"],
+      nederpop: ["nederpop hits", "nederlandstalig", "top 40 nederland", "dutch hits"],
+      summer: ["summer hits", "zomerhits", "latin pop hits", "beach party"],
+      "80s90s": ["80s pop hits", "90s smash hits", "80s greatest", "90s dance"],
+      "00s10s": ["2000s radio hits", "2010s pop anthems", "top hits 2010"]
+    };
+
+    let hostCurrentTrack = null;
+    let hostTrackKey = null;
+    let hostSourceNote = '';
+    const hostAudio = $('host-audio-player');
+    const vinyl = $('vinyl-disc');
+    const hostPlayBtn = $('host-play-btn');
+
+    async function hostFetchAndPlayNext() {
+      if (hostBusy) return;
+      hostBusy = true;
+      $('host-next-btn').disabled = true;
+      try {
+        hostAudio.pause();
+        spotifyPause();
+        spStartedUri = null;
+        vinyl.classList.remove('spinning');
+
+        const cat = (hs && hs.settings && hs.settings.category) || 'original';
+        let track = null;
+        hostSourceNote = '';
+        // Eerst Spotify proberen als de host verbonden is, anders iTunes-preview
+        if (spActive) {
+          track = await fetchSpotifyTrack(cat);
+          if (!track) hostSourceNote = 'Spotify gaf nu geen nummer terug, deze ronde is een preview.';
+        }
+        if (!track) track = await fetchItunesTrack(cat);
+        socket.emit('new_track', { track });
+      } finally {
+        hostBusy = false;
+        if (hs) renderHost();
+      }
+    }
+
+    async function fetchItunesTrack(cat) {
+      const terms = CATEGORY_SEARCH[cat] || CATEGORY_SEARCH.original;
+      const term = terms[Math.floor(Math.random() * terms.length)];
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=50&country=NL`);
+        const data = await res.json();
+        const valid = data.results.filter(i => i.previewUrl && i.trackName && i.releaseDate);
+        const item = valid[Math.floor(Math.random() * valid.length)];
+        return {
+          title: item.trackName,
+          artist: item.artistName,
+          year: new Date(item.releaseDate).getFullYear(),
+          previewUrl: item.previewUrl
+        };
+      } catch (e) {
+        return { title: "Bohemian Rhapsody", artist: "Queen", year: 1975, previewUrl: "" };
+      }
+    }
+
+    // Zet audio klaar zodra de server een (nieuw of herstel-) nummer meldt
+    function syncHostTrack(track, round) {
+      if (!track) return;
+      const key = round + '|' + (track.uri || track.previewUrl || '') + '|' + track.title;
+      if (key === hostTrackKey) return;
+      hostTrackKey = key;
+      hostCurrentTrack = track;
+      hostAudio.pause();
+      vinyl.classList.remove('spinning');
+      spStartedUri = null;
+      if (track.uri) {
+        hostAudio.removeAttribute('src');
+        setHostSource('🎧 Spotify: volledig nummer');
+      } else {
+        if (track.previewUrl) {
+          hostAudio.src = track.previewUrl;
+          hostAudio.load();
+        }
+        setHostSource(hostSourceNote || 'Bron: iTunes-preview (30s)', !!hostSourceNote);
+      }
+      hostSourceNote = '';
+      setPlayBtn('play');
+    }
+
+    // Teksten op de afspeelknop, afhankelijk van de bron (Spotify of preview)
+    function setPlayBtn(mode) {
+      const spotify = !!(hostCurrentTrack && hostCurrentTrack.uri);
+      const labels = spotify
+        ? { play: '▶ Speel Nummer', pause: '⏸ Pauzeer', replay: '▶ Herhaal Nummer' }
+        : { play: '▶ Speel Preview (30s)', pause: '⏸ Pauzeer Preview', replay: '▶ Herhaal Preview' };
+      hostPlayBtn.innerText = labels[mode];
+    }
+
+    function hostToggleAudio() {
+      if (!hostCurrentTrack) return;
+      if (hostCurrentTrack.uri) {
+        if (!spActive) {
+          setHostSource('Spotify is niet verbonden. Verbind in de lobby, of ga naar het volgende nummer.', true);
+          return;
+        }
+        return spotifyToggle();
+      }
+      if (hostAudio.paused) {
+        hostAudio.play();
+        vinyl.classList.add('spinning');
+        setPlayBtn('pause');
+      } else {
+        hostAudio.pause();
+        vinyl.classList.remove('spinning');
+        setPlayBtn('play');
+      }
+    }
+    hostAudio.onended = () => { vinyl.classList.remove('spinning'); setPlayBtn('replay'); };
+
+    function setHostSource(text, warn) {
+      const el = $('host-source');
+      el.innerText = text;
+      el.classList.toggle('warn', !!warn);
+    }
+
+    function hostReveal() {
+      hostAudio.pause();
+      spotifyPause();
+      vinyl.classList.remove('spinning');
+      socket.emit('reveal_track');
+    }
+
+    // =====================================================================
+    // SPELER
+    // =====================================================================
+    function showPlayerJoin() { showView('view-player-join'); }
+
+    function joinRoom() {
+      const name = $('player-name').value;
+      const pin = $('room-pin').value;
+      if (!name || pin.length !== 4) return alert('Vul je naam en 4-cijferige PIN in.');
+      currentPin = pin;
+      socket.emit('join_room', { pin, name });
+    }
+
+    socket.on('join_error', (msg) => alert(msg));
+    socket.on('joined', ({ pin, playerId }) => {
+      isHost = false;
+      currentPin = pin;
+      saveSession({ role: 'player', pin, playerId });
+    });
+
+    socket.on('player_state', (s) => {
+      isHost = false;
+      ps = s;
+      currentPin = s.pin;
+      renderPlayer();
+    });
+
+    function renderPlayer() {
+      const s = ps;
+      if (!s) return;
+      const waiting = s.state === 'LOBBY' || (s.state === 'GAME' && s.phase === 'IDLE');
+      if (waiting) {
+        showView('view-player-waiting');
+        renderWaiting(s);
+      } else {
+        showView('view-player-game');
+        renderGame(s);
+      }
+    }
+
+    function renderWaiting(s) {
+      $('waiting-greeting').innerText = 'Hallo ' + s.name + '!';
+      const tb = $('waiting-team');
+      if (s.mode === 'teams' && s.teams) {
+        const t = s.teams.find(x => x.id === s.teamId);
+        if (t) {
+          tb.style.setProperty('--bc', t.color);
+          tb.classList.remove('hidden');
+          tb.innerHTML = `Je zit in <strong style="color:${t.color}">${esc(t.name)}</strong><br><span style="font-weight:600;font-size:0.8rem">${t.members.map(m => esc(m.name)).join(', ')}</span>`;
+        }
+        $('waiting-sub').innerText = 'Jullie delen samen een tijdlijn en fiches.';
+      } else {
+        tb.classList.add('hidden');
+        $('waiting-sub').innerText = 'Je krijgt willekeurige beginkaarten.';
+      }
+      $('waiting-msg').innerText = s.state === 'LOBBY'
+        ? '⏳ Wachten tot de host het spel start...'
+        : '⏳ Wachten tot de host de volgende ronde start...';
+      $('waiting-host-away').style.display = s.hostConnected ? 'none' : 'block';
+    }
+
+    function fillIfEmpty(id, v) {
+      const e = $(id);
+      if (!e.value && v !== null && v !== undefined && v !== '') e.value = v;
+    }
+
+    function playerBanner(s) {
+      const tr = s.tr;
+      if (s.mode !== 'teams' || !tr || s.phase === 'REVEALED') return null;
+      const color = tr.activeColor;
+      if (!tr.submitted) {
+        if (tr.iAmActive) return { color, text: `🎯 Jij bent aan zet! Plaats de kaart voor ${tr.activeTeamName}.` };
+        if (tr.myTeamActive) return { color, text: `${tr.activePlayerName} van jouw team is aan zet. Denk mee!` };
+        return { color, text: `${tr.activeTeamName} is aan zet (${tr.activePlayerName}). Daarna kun je inbreken met een fiche.` };
+      }
+      if (tr.stealStatus === 'pending') {
+        return { color, text: tr.myTeamActive ? `Kaart geplaatst. ${tr.oppTeamName} kan nog inbreken…` : `${tr.activePlayerName} plaatste de kaart. Wil jij inbreken?` };
+      }
+      if (tr.stealStatus === 'stolen') return { color, text: `⚡ ${tr.stealTeamName} breekt in! Wachten op de host…` };
+      return { color, text: 'Wachten op de host…' };
+    }
+
+    function renderTokens(n) {
+      const tokenBox = $('player-tokens-box');
+      tokenBox.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const chip = document.createElement('div');
+        chip.className = 'token-chip' + (i >= n ? ' spent' : '');
+        tokenBox.appendChild(chip);
+      }
+    }
+
+    // Tijdlijn tekenen. Opties: selectable, selectedIdx, markerIdx, markerColor, popKey, onPick
+    function renderTimeline(container, timeline, o) {
+      o = o || {};
+      container.innerHTML = '';
+      let popDone = false;
+      let popEl = null;
+      for (let i = 0; i <= timeline.length; i++) {
+        const isMarker = o.markerIdx === i;
+        const isSelected = o.selectedIdx === i;
+        if (o.selectable || isMarker || isSelected) {
+          const slot = document.createElement('button');
+          slot.className = 'timeline-slot-btn' + (isSelected ? ' selected' : '') + (isMarker ? ' marked' : '');
+          if (isMarker) {
+            slot.style.setProperty('--mc', o.markerColor || '#ffffff');
+            slot.innerText = '📍';
+            slot.disabled = true;
+          } else if (o.selectable) {
+            slot.innerText = '+';
+            slot.onclick = () => o.onPick(i);
+          } else {
+            slot.innerText = '📍';
+            slot.disabled = true;
+          }
+          container.appendChild(slot);
+        }
+        if (i < timeline.length) {
+          const item = timeline[i];
+          const card = document.createElement('div');
+          const isNew = !popDone && o.popKey && (item.title + '|' + item.year) === o.popKey;
+          if (isNew) { popDone = true; popEl = card; }
+          card.className = 'hitster-card' + (isNew ? ' pop' : '');
+          card.setAttribute('style', cardTheme(item.year));
+          card.innerHTML = `
+            <div class="card-artist">${esc(item.artist)}</div>
+            <div class="card-year">${item.year}</div>
+            <div class="card-title">${esc(item.title)}</div>
+          `;
+          container.appendChild(card);
+        }
+      }
+      if (popEl && popEl.scrollIntoView) popEl.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
+
+    function renderFeedback(s) {
+      const fb = $('player-feedback-msg');
+      const r = s.reveal;
+      if (!(s.phase === 'REVEALED' && r)) {
+        fb.style.display = 'none';
+        return null;
+      }
+      const tl = `${esc(r.track.title)} – ${esc(r.track.artist)}`;
+      let win = false;
+      let html = '';
+
+      if (s.mode === 'teams') {
+        const mine = s.teamId;
+        if (r.outcome === 'active') {
+          win = r.activeTeamId === mine;
+          html = win
+            ? `🎉 <strong>${esc(r.activeTeamName)} had het goed! De kaart komt in jullie tijdlijn.</strong>`
+            : `❌ <strong>${esc(r.activeTeamName)} had het goed.</strong>` + (r.stealStatus === 'stolen' && r.stealTeamId === mine ? ' Je inbraak mislukte, de fiche is weg.' : '');
+        } else if (r.outcome === 'stolen') {
+          win = r.winnerTeamId === mine;
+          html = win
+            ? '⚡ <strong>Inbraak gelukt! De kaart komt in jullie tijdlijn.</strong>'
+            : `❌ <strong>${esc(r.stealTeamName)} brak in en pakte de kaart.</strong>`;
+        } else {
+          html = '🤷 <strong>Niemand had het goed.</strong> De kaart verdwijnt.' + (r.stealStatus === 'stolen' && r.stealTeamId === mine ? ' Je inbraak klopte niet.' : '');
+        }
+        html += `<br>${tl} (<strong>${r.track.year}</strong>)`;
+      } else {
+        const p = r.personal;
+        if (p && p.wonCard) {
+          win = true;
+          html = `🎉 <strong>KAART GEWONNEN! (+${p.pointsEarned}★)</strong><br>${tl} (<strong>${r.track.year}</strong>) zit in je tijdlijn!`;
+        } else {
+          html = `❌ <strong>HELAAS!</strong> ${esc(r.track.title)} kwam uit <strong>${r.track.year}</strong>.<br>` +
+            (r.exactWinners.length ? 'Iemand anders had het jaartal exact goed!' : (p && p.hadGuess ? 'Je tijdlijnplek klopte niet.' : 'Je hebt niets ingediend.'));
+        }
+      }
+
+      const tj = r.titleJudgement;
+      if (tj) {
+        const who = s.mode === 'teams' ? ` (${esc(tj.name)})` : '';
+        html += '<br>' + (tj.status === 'pending'
+          ? `⏳ Titel &amp; artiest${who}: wacht op de host…`
+          : tj.status === 'approved'
+            ? `✅ Titel &amp; artiest${who} goedgekeurd: +1 fiche!`
+            : `❌ Titel &amp; artiest${who} niet goedgekeurd.`);
+      }
+
+      fb.className = 'feedback ' + (win ? 'win' : 'lose');
+      fb.innerHTML = html;
+      fb.style.display = 'block';
+      return win ? r.track.title + '|' + r.track.year : null;
+    }
+
+    function renderGame(s) {
+      const teamMode = s.mode === 'teams';
+      const tr = s.tr;
+      const active = s.phase === 'ACTIVE';
+      const revealed = s.phase === 'REVEALED';
+      const over = s.state === 'OVER';
+
+      // Nieuwe ronde: lokale keuzes en invulvelden wissen
+      if (ui.round !== s.round) {
+        ui = { round: s.round, slotIndex: null, usedToken: false, stealMode: false, stealSlot: null, animatedRound: ui.animatedRound, sending: false };
+        ['player-exact-year', 'guess-title', 'guess-artist'].forEach(id => { $(id).value = ''; });
+      }
+
+      const iAmActive = teamMode ? !!(tr && tr.iAmActive) : true;
+      const submitted = teamMode ? !!(tr && tr.iAmActive && tr.submitted) : !!s.submitted;
+      const canPlace = active && iAmActive && !submitted;
+      if (submitted) ui.sending = false;
+
+      // Na een refresh: eerdere keuze terugzetten
+      if (submitted && active) {
+        if (teamMode) {
+          ui.slotIndex = tr.chosenSlot;
+          fillIfEmpty('guess-title', tr.myTitle);
+          fillIfEmpty('guess-artist', tr.myArtist);
+        } else if (s.guess) {
+          ui.slotIndex = s.guess.slotIndex;
+          ui.usedToken = !!s.guess.usedToken;
+          fillIfEmpty('player-exact-year', s.guess.exactYear);
+          fillIfEmpty('guess-title', s.guess.title);
+          fillIfEmpty('guess-artist', s.guess.artist);
+        }
+      }
+
+      // Kop
+      $('pg-badge').innerText = over ? 'Einde' : revealed ? 'Uitslag'
+        : (teamMode && tr ? (tr.iAmActive ? 'Jij bent aan zet' : (tr.myTeamActive ? 'Jouw team is aan zet' : 'Tegenstander aan zet')) : 'Jouw Beurt');
+      $('player-score').innerText = teamMode
+        ? `Kaarten: ${s.timeline.length}${s.target ? '/' + s.target : ''}`
+        : `Score: ${s.score}`;
+      $('pg-host-away').style.display = s.hostConnected ? 'none' : 'block';
+
+      const b = playerBanner(s);
+      const bn = $('pg-banner');
+      if (b) {
+        bn.classList.remove('hidden');
+        bn.style.setProperty('--bc', b.color);
+        bn.innerText = b.text;
+      } else {
+        bn.classList.add('hidden');
+      }
+
+      // Onderdelen per situatie
+      setHidden('pg-mystery', !active);
+      $('pg-tokens-label').innerText = teamMode ? 'Fiches van je team:' : 'Hitster Fiches:';
+      renderTokens(s.tokens);
+
+      setHidden('btn-use-token', teamMode || !active);
+      const tb = $('btn-use-token');
+      tb.disabled = submitted;
+      if (ui.usedToken) {
+        tb.classList.add('active');
+        tb.innerHTML = '✨ Fiche Ingezet!';
+      } else {
+        tb.classList.remove('active');
+        tb.innerHTML = '🪙 Zet 1 Fiche in (Dubbele Punten)';
+      }
+
+      setHidden('pg-exact', teamMode || !active);
+      setHidden('pg-guess', !(s.guessTitle && active && iAmActive));
+      $('player-exact-year').disabled = submitted;
+      $('guess-title').disabled = submitted;
+      $('guess-artist').disabled = submitted;
+
+      // Tijdlijn
+      $('pg-timeline-label').innerText = teamMode ? `Tijdlijn van ${s.teamName}` : 'Jouw Hitster Tijdlijn';
+      let hint = '';
+      if (canPlace) hint = 'Tik op een + om je kaart in te voegen:';
+      else if (active && submitted) hint = 'Ingediend. Wachten op de uitslag…';
+      else if (active && teamMode && tr && tr.myTeamActive) hint = 'Alleen de speler aan zet plaatst de kaart. Denk mee!';
+      $('pg-timeline-hint').innerText = hint;
+
+      const winKey = renderFeedback(s);
+      const popKey = revealed && ui.animatedRound !== s.round ? winKey : null;
+      renderTimeline($('player-timeline-scroll'), s.timeline, {
+        selectable: canPlace,
+        selectedIdx: active ? ui.slotIndex : null,
+        popKey,
+        onPick: (i) => { ui.slotIndex = i; renderGame(ps); }
+      });
+      if (revealed) ui.animatedRound = s.round;
+
+      setHidden('btn-submit-turn', !(active && iAmActive));
+      const sb = $('btn-submit-turn');
+      sb.disabled = submitted || ui.sending;
+      sb.innerText = submitted ? '⏳ Ingediend! Wachten...' : '✅ Keuze Indienen';
+
+      renderSteal(s);
+
+      const wb = $('pg-winner');
+      if (s.winner) {
+        wb.classList.remove('hidden');
+        wb.innerText = '🏆 ' + s.winner.names.join(' & ') + (s.winner.names.length > 1 ? ' winnen' : ' wint') + '!';
+      } else {
+        wb.classList.add('hidden');
+      }
+    }
+
+    // ---------- Inbreken ----------
+    function renderSteal(s) {
+      const tr = s.tr;
+      const box = $('pg-steal');
+      if (!(tr && tr.canSteal)) {
+        box.classList.add('hidden');
+        ui.stealMode = false;
+        return;
+      }
+      box.classList.remove('hidden');
+      $('steal-text').innerText = `${tr.activeTeamName} plaatste de kaart op de plek met 📍. Denk jij dat het ergens anders hoort? Zet 1 fiche in om in te breken. Klopt jouw plek en niet de hunne, dan komt de kaart in jullie tijdlijn.`;
+      $('steal-actions').style.display = ui.stealMode ? 'none' : 'flex';
+      $('steal-picker').style.display = ui.stealMode ? 'block' : 'none';
+      if (ui.stealMode) {
+        $('steal-team-name').innerText = tr.activeTeamName;
+        renderTimeline($('steal-timeline'), tr.activeTimeline || [], {
+          selectable: true,
+          selectedIdx: ui.stealSlot,
+          markerIdx: tr.chosenSlot,
+          markerColor: tr.activeColor,
+          onPick: (i) => { ui.stealSlot = i; renderGame(ps); }
+        });
+        $('steal-confirm').disabled = ui.stealSlot === null;
+      }
+    }
+
+    function startSteal() { ui.stealMode = true; ui.stealSlot = null; renderGame(ps); }
+    function cancelSteal() { ui.stealMode = false; ui.stealSlot = null; renderGame(ps); }
+    function passSteal() { socket.emit('pass_steal'); }
+    function confirmSteal() {
+      if (ui.stealSlot === null) return;
+      socket.emit('submit_steal', { slotIndex: ui.stealSlot });
+    }
+
+    // ---------- Beurt indienen ----------
+    function togglePlayerToken() {
+      if (!ps || ps.submitted || ps.phase !== 'ACTIVE') return;
+      if (!ui.usedToken && ps.tokens <= 0) return alert('Geen fiches meer!');
+      ui.usedToken = !ui.usedToken;
+      renderGame(ps);
+    }
+
+    function submitPlayerTurn() {
+      const s = ps;
+      if (!s || ui.sending) return;
+      const year = $('player-exact-year').value;
+      if (s.mode === 'teams') {
+        if (ui.slotIndex === null) return alert('Kies eerst een + plekje op de tijdlijn!');
+      } else if (ui.slotIndex === null && !year) {
+        return alert('Kies eerst een + plekje op je tijdlijn of vul een exact jaartal in!');
+      }
+
+      ui.sending = true;
+      // Lukt het niet (bijv. geen verbinding), geef de knop na even wachten weer vrij
+      setTimeout(() => { if (ui.sending) { ui.sending = false; if (ps) renderGame(ps); } }, 4000);
+
+      socket.emit('submit_turn', {
+        slotIndex: ui.slotIndex,
+        exactYear: year,
+        usedToken: ui.usedToken,
+        guessTitle: $('guess-title').value,
+        guessArtist: $('guess-artist').value
+      });
+      // Altijd de nieuwste status tekenen (het antwoord van de server kan al binnen zijn)
+      if (ps) renderGame(ps);
+    }
+
+    function leaveGame() {
+      if (!confirm('Het spel verlaten?')) return;
+      socket.emit('leave_room');
+      clearSession();
+      backToMenuPage(200);
+    }
+
+    // =====================================================================
+    // SPOTIFY-KOPPELING (alleen host)
+    // Inloggen via Authorization Code + PKCE (geen client secret nodig),
+    // afspelen via de Web Playback SDK (Premium), nummers via /v1/search.
+    // =====================================================================
+    const SP_LS = { clientId: 'hitster_sp_client', tokens: 'hitster_sp_tokens', verifier: 'hitster_sp_verifier', state: 'hitster_sp_state' };
+    const SP_SCOPES = 'streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state';
+    const SP_CHANNEL = ('BroadcastChannel' in window) ? new BroadcastChannel('hitster-spotify') : null;
+
+    let spPlayer = null;
+    let spDeviceId = null;
+    let spActive = false;        // speler klaar en account is Premium
+    let spStartedUri = null;     // nummer dat al gestart is op de Spotify-speler
+    let spUiState = 'off';
+    let spDefaultInfo = '';
+    const spPlayed = new Set();  // al gespeelde nummers, zodat niets herhaald wordt
+
+    // Per categorie: jaartal-bereik en (optioneel) Spotify-genres
+    const SP_CATEGORIES = {
+      original: { years: [1960, 2024], genres: null },
+      guilty:   { years: [1985, 2015], genres: ['eurodance', 'europop', 'boy band', 'dance pop', 'schlager'] },
+      rock:     { years: [1965, 2020], genres: ['rock', 'classic rock', 'hard rock', 'alternative rock', 'grunge', 'punk'] },
+      nederpop: { years: [1965, 2024], genres: ['dutch pop', 'nederpop', 'dutch rock', 'nederlandstalig'] },
+      summer:   { years: [1980, 2024], genres: ['latin pop', 'reggaeton', 'tropical house', 'dance pop'] },
+      '80s90s': { years: [1980, 1999], genres: null },
+      '00s10s': { years: [2000, 2019], genres: null }
+    };
+    // Dit soort versies geven vaak een verkeerd jaartal (heruitgave, live, cover...)
+    const SP_SKIP = /(karaoke|tribute|instrumental|remaster|\blive\b|remix|version|sped up|slowed|cover)/i;
+
+    const spInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    const spPick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    function spB64url(bytes) {
+      let s = '';
+      new Uint8Array(bytes).forEach(b => { s += String.fromCharCode(b); });
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function spRandom(n) { return spB64url(crypto.getRandomValues(new Uint8Array(n))); }
+
+    function spRedirectUri() { return window.location.origin + window.location.pathname; }
+    const SP_CLIENT_ID = '3fc7ebb5540449dc92fa1ee9f4e97fff'; // publiek en niet geheim: er is geen client secret nodig
+    function spClientId() { return SP_CLIENT_ID; }
+    function spLoadTokens() { try { return JSON.parse(localStorage.getItem(SP_LS.tokens)); } catch (e) { return null; } }
+    function spSaveTokens(t) { localStorage.setItem(SP_LS.tokens, JSON.stringify(t)); }
+
+    // Spotify weigert "localhost" en gewone http op een netwerk-IP als redirect
+    function spEnvProblem() {
+      if (window.location.hostname === 'localhost') {
+        return 'Spotify accepteert geen "localhost". Open het spel als host via http://127.0.0.1:' + (window.location.port || 3000);
+      }
+      if (!window.isSecureContext) {
+        return 'Open het spel als host via http://127.0.0.1:3000 (of via https). Via een netwerk-IP kan Spotify niet inloggen.';
+      }
+      return null;
+    }
+
+    function spSetStatus(kind, info) {
+      spUiState = kind;
+      const badge = document.getElementById('spotify-badge');
+      const btn = document.getElementById('spotify-connect-btn');
+      const labels = { off: 'Niet verbonden', busy: 'Bezig…', on: 'Verbonden', err: 'Fout' };
+      badge.className = 'spotify-badge ' + kind;
+      badge.innerText = labels[kind];
+      btn.innerText = kind === 'on' ? 'Ontkoppel Spotify' : 'Verbind met Spotify';
+      btn.disabled = kind === 'busy';
+      if (info) document.getElementById('spotify-info').innerText = info;
+    }
+
+    function spotifyInitLobby() {
+      spDefaultInfo = document.getElementById('spotify-info').innerText;
+      document.getElementById('spotify-redirect').value = spRedirectUri();
+
+      const problem = spEnvProblem();
+      if (problem) return spSetStatus('err', problem);
+
+      if (spLoadTokens() && spClientId()) spInitPlayer();
+      else spSetStatus('off');
+    }
+
+    function spotifyConnectClick() {
+      if (spUiState === 'on') spDisconnect();
+      else spotifyConnect();
+    }
+
+    async function spotifyConnect() {
+      const problem = spEnvProblem();
+      if (problem) return spSetStatus('err', problem);
+
+      const clientId = spClientId();
+      spTeardownPlayer();
+
+      // Popup direct openen (tijdens de klik), het Spotify-adres volgt daarna
+      const popup = window.open('', 'hitster-spotify-auth', 'width=480,height=740');
+      if (!popup) return spSetStatus('err', 'De popup werd geblokkeerd. Sta popups toe voor deze pagina en probeer opnieuw.');
+      spSetStatus('busy', 'Log in bij Spotify in het popup-venster…');
+      setTimeout(() => { if (spUiState === 'busy') spSetStatus('off', spDefaultInfo); }, 120000);
+
+      const verifier = spRandom(64);
+      const challenge = spB64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+      const state = spRandom(16);
+      localStorage.setItem(SP_LS.verifier, verifier);
+      localStorage.setItem(SP_LS.state, state);
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        scope: SP_SCOPES,
+        redirect_uri: spRedirectUri(),
+        code_challenge_method: 'S256',
+        code_challenge: challenge,
+        state: state
+      });
+      popup.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+    }
+
+    // Het popup-venster meldt via een BroadcastChannel dat het inloggen klaar is
+    if (SP_CHANNEL) {
+      SP_CHANNEL.onmessage = (e) => {
+        if (!isHost || !e.data || e.data.type !== 'auth') return;
+        if (e.data.ok) spInitPlayer();
+        else spSetStatus('err', e.data.error || 'Inloggen mislukt.');
+      };
+    }
+
+    async function spGetToken() {
+      let t = spLoadTokens();
+      if (!t) throw new Error('Niet verbonden met Spotify');
+      if (Date.now() < t.expires_at - 60000) return t.access_token;
+
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: spClientId() })
+      });
+      if (!res.ok) {
+        localStorage.removeItem(SP_LS.tokens);
+        throw new Error('Spotify-sessie verlopen, verbind opnieuw');
+      }
+      const d = await res.json();
+      t = { access_token: d.access_token, refresh_token: d.refresh_token || t.refresh_token, expires_at: Date.now() + d.expires_in * 1000 };
+      spSaveTokens(t);
+      return t.access_token;
+    }
+
+    async function spApi(path, opts) {
+      opts = opts || {};
+      const token = await spGetToken();
+      return fetch('https://api.spotify.com/v1' + path, {
+        ...opts,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+    }
+
+    function spLoadSdk() {
+      return new Promise((resolve, reject) => {
+        if (window.Spotify) return resolve();
+        window.onSpotifyWebPlaybackSDKReady = () => resolve();
+        const s = document.createElement('script');
+        s.src = 'https://sdk.scdn.co/spotify-player.js';
+        s.onerror = () => reject(new Error('De Spotify-speler kon niet laden. Controleer je internetverbinding.'));
+        document.head.appendChild(s);
+      });
+    }
+
+    function spFail(msg) {
+      spActive = false;
+      spSetStatus('err', msg);
+    }
+
+    async function spInitPlayer() {
+      if (spPlayer) return;
+      spSetStatus('busy', 'Spotify-speler starten…');
+      try { await spLoadSdk(); } catch (e) { return spFail(e.message); }
+
+      spPlayer = new Spotify.Player({
+        name: 'Hitster Host',
+        getOAuthToken: (cb) => { spGetToken().then(cb).catch(e => spFail(e.message)); },
+        volume: 0.8
+      });
+
+      spPlayer.addListener('ready', async ({ device_id }) => {
+        spDeviceId = device_id;
+        spActive = true;
+        spSetStatus('on', 'Verbonden: de nummers worden volledig afgespeeld via Spotify in dit browsertabblad.');
+        // Dit tabblad als afspeelapparaat instellen, zonder meteen af te spelen
+        try { await spApi('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [device_id], play: false }) }); } catch (e) {}
+      });
+      spPlayer.addListener('not_ready', () => spFail('De Spotify-speler is offline. Ververs de pagina of verbind opnieuw.'));
+      spPlayer.addListener('initialization_error', ({ message }) => spFail('Spotify-speler werkt niet in deze browser: ' + message));
+      spPlayer.addListener('authentication_error', ({ message }) => spFail('Inloggen bij Spotify mislukt: ' + message));
+      spPlayer.addListener('account_error', () => spFail('Dit Spotify-account heeft geen (volledig) Premium. Het spel gebruikt iTunes-previews.'));
+      spPlayer.addListener('playback_error', ({ message }) => setHostSource('Spotify-afspeelfout: ' + message, true));
+      spPlayer.addListener('player_state_changed', (state) => {
+        if (!state || !spStartedUri) return;
+        const playing = !state.paused;
+        vinyl.classList.toggle('spinning', playing);
+        setPlayBtn(playing ? 'pause' : (state.position === 0 ? 'replay' : 'play'));
+      });
+
+      const ok = await spPlayer.connect();
+      if (!ok) spFail('Kon geen verbinding maken met Spotify.');
+    }
+
+    function spTeardownPlayer() {
+      try { if (spPlayer) spPlayer.disconnect(); } catch (e) {}
+      spPlayer = null;
+      spDeviceId = null;
+      spActive = false;
+      spStartedUri = null;
+    }
+
+    function spDisconnect() {
+      spTeardownPlayer();
+      localStorage.removeItem(SP_LS.tokens);
+      spSetStatus('off', spDefaultInfo);
+    }
+
+    function spotifyPause() {
+      try { if (spPlayer && spActive) Promise.resolve(spPlayer.pause()).catch(() => {}); } catch (e) {}
+    }
+
+    function spDescribeError(res) {
+      if (res.status === 401) return 'Spotify-sessie verlopen (401). Verbind opnieuw.';
+      if (res.status === 403) return 'Spotify weigerde het afspelen (403). Controleer of dit account Premium heeft en bij de app hoort.';
+      if (res.status === 404) return 'Spotify vond de speler niet (404). Ververs de pagina en verbind opnieuw.';
+      if (res.status === 429) return 'Spotify zegt: te veel verzoeken (429). Wacht even en probeer opnieuw.';
+      return 'Spotify-fout ' + res.status + '.';
+    }
+
+    async function spotifyToggle() {
+      const track = hostCurrentTrack;
+      // Moet direct in de klik: zet het geluid van de browser vrij
+      try { Promise.resolve(spPlayer.activateElement()).catch(() => {}); } catch (e) {}
+      try {
+        if (spStartedUri === track.uri) {
+          await spPlayer.togglePlay();
+          return;
+        }
+        const play = () => spApi('/me/player/play?device_id=' + encodeURIComponent(spDeviceId), {
+          method: 'PUT', body: JSON.stringify({ uris: [track.uri] })
+        });
+        let res = await play();
+        if (res.status === 404) {
+          // Apparaat nog niet bekend bij Spotify: eerst overzetten en nog eens proberen
+          await spApi('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [spDeviceId], play: false }) });
+          await new Promise(r => setTimeout(r, 800));
+          res = await play();
+        }
+        if (res.ok) {
+          spStartedUri = track.uri;
+          vinyl.classList.add('spinning');
+          setPlayBtn('pause');
+        } else {
+          setHostSource(spDescribeError(res), true);
+        }
+      } catch (e) {
+        setHostSource('Spotify: ' + e.message, true);
+      }
+    }
+
+    // Willekeurig nummer zoeken: eerst een willekeurig jaar (eventueel met genre),
+    // zodat de tijdlijn mooi verspreid raakt. Bij mislukken: null, dan valt het spel terug op iTunes.
+    async function fetchSpotifyTrack(cat) {
+      const cfg = SP_CATEGORIES[cat] || SP_CATEGORIES.original;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        let q = 'year:' + spInt(cfg.years[0], cfg.years[1]);
+        if (cfg.genres) q += ' genre:"' + spPick(cfg.genres) + '"';
+        const offset = attempt < 3 ? spInt(0, 30) : 0;
+
+        let res;
+        try {
+          res = await spApi('/search?type=track&limit=10&market=NL&offset=' + offset + '&q=' + encodeURIComponent(q));
+        } catch (e) { return null; }
+        if (res.status === 401 || res.status === 403 || res.status === 429) return null;
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        let items = ((data.tracks && data.tracks.items) || []).filter(i =>
+          i && i.uri && i.name && i.artists && i.artists.length && i.album && i.album.release_date &&
+          i.album.album_type !== 'compilation' && i.is_playable !== false &&
+          !SP_SKIP.test(i.name + ' ' + i.album.name) && !spPlayed.has(i.uri)
+        );
+        // Als Spotify populariteit meegeeft, liever bekende nummers
+        const popular = items.filter(i => typeof i.popularity === 'number' && i.popularity >= 35);
+        if (popular.length) items = popular;
+        if (!items.length) continue;
+
+        const t = spPick(items);
+        spPlayed.add(t.uri);
+        return {
+          title: t.name,
+          artist: t.artists.slice(0, 2).map(a => a.name).join(', '),
+          year: parseInt(t.album.release_date.slice(0, 4), 10),
+          previewUrl: '',
+          uri: t.uri
+        };
+      }
+      return null;
+    }
+
+    // Na het inloggen komt Spotify terug op deze pagina (in het popup-venster) met ?code=...
+    (async function spotifyHandleRedirect() {
+      const p = new URLSearchParams(window.location.search);
+      if (!p.has('code') && !p.has('error')) return;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'spotify-overlay';
+      overlay.innerText = 'Spotify koppelen…';
+      document.body.appendChild(overlay);
+
+      const finish = (ok, msg) => {
+        if (SP_CHANNEL) SP_CHANNEL.postMessage({ type: 'auth', ok: ok, error: msg || '' });
+        overlay.innerText = ok ? '✅ Verbonden met Spotify. Je kunt dit venster sluiten.' : '❌ ' + msg;
+        history.replaceState({}, '', window.location.pathname);
+        if (ok) setTimeout(() => window.close(), 600);
+      };
+
+      try {
+        if (p.get('error')) throw new Error('Spotify gaf een fout: ' + p.get('error'));
+        if (p.get('state') !== localStorage.getItem(SP_LS.state)) throw new Error('Ongeldige inlogpoging, probeer opnieuw.');
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: spClientId(),
+            grant_type: 'authorization_code',
+            code: p.get('code'),
+            redirect_uri: spRedirectUri(),
+            code_verifier: localStorage.getItem(SP_LS.verifier) || ''
+          })
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error_description || d.error || 'Token ophalen mislukt');
+        spSaveTokens({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + d.expires_in * 1000 });
+        localStorage.removeItem(SP_LS.verifier);
+        localStorage.removeItem(SP_LS.state);
+        finish(true);
+      } catch (e) {
+        finish(false, e.message);
+      }
+    })();
+
+    // =====================================================================
+    // APP-INSTALLATIE (PWA)
+    // =====================================================================
+    let deferredInstall = null;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    // Android/Chrome: eigen installeerknop tonen als de browser dat toestaat
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstall = e;
+      document.getElementById('install-btn').classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstall = null;
+      document.getElementById('install-btn').classList.add('hidden');
+    });
+    async function installApp() {
+      if (!deferredInstall) return;
+      deferredInstall.prompt();
+      await deferredInstall.userChoice;
+      deferredInstall = null;
+      document.getElementById('install-btn').classList.add('hidden');
+    }
+    // iPhone/iPad kennen geen installeerknop: korte uitleg tonen
+    if (isIos && !isStandalone) document.getElementById('ios-hint').classList.remove('hidden');
+
+    // Gratis hosting zet de server na 15 min zonder verkeer in slaapstand (kamers zijn dan weg)
+    let keepAliveTimer = null;
+    function startKeepAlive() {
+      if (keepAliveTimer) return;
+      keepAliveTimer = setInterval(() => socket.emit('keepalive'), 4 * 60 * 1000);
+    }
+
+    // Service worker werkt alleen via https of 127.0.0.1
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

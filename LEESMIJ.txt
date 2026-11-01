@@ -1,0 +1,39 @@
+HITSTER PARTY (app-versie)
+
+Lokaal starten:
+  npm install
+  npm start
+  Host: http://127.0.0.1:3000   (niet localhost, niet het netwerk-IP)
+  Spelers: http://<ip-van-de-host>:3000 op hun telefoon
+
+Spelmodi (kies in de lobby):
+  Individueel  Iedereen speelt voor zichzelf met een eigen tijdlijn.
+  Teams        Twee teams (Roze en Cyaan) delen een tijdlijn en fiches.
+               De teams zijn om de beurt aan zet; binnen een team wisselt de
+               speler aan zet. Het andere team kan met 1 fiche inbreken:
+               kloppen zij en niet het team aan zet, dan komt de kaart in
+               hun tijdlijn. De host kan spelers van team wisselen of de
+               teams willekeurig verdelen.
+  Winnaar bij  5/7/10/15/20 kaarten, of geen limiet.
+
+Titel & artiest raden (aan/uit in de lobby):
+  Spelers kunnen titel en artiest invullen. Na de uitslag keurt de host elke
+  gok goed of af (typfouten dus geen probleem; de pagina geeft een hint).
+  Goedgekeurd = +1 fiche (maximaal 5).
+
+Sessieherstel:
+  Wie de pagina ververst of even geen verbinding heeft, komt terug waar hij was
+  (ook de host). Via "Spel verlaten" / "Spel afsluiten" ruim je de sessie op.
+
+Online zetten via Render:
+  1. Zet de INHOUD van deze map (server.js, package.json, render.yaml, public/)
+     in de root van je GitHub-repo. Dus niet de map "hitster" zelf.
+  2. Render > New > Web Service > kies je repo.
+     Build command: npm install   Start command: npm start   Instance type: Free
+     (of: New > Blueprint, dan leest Render render.yaml)
+  3. Spotify: de Client ID staat in public/index.html. Zet de Redirect-URI uit de
+     lobby in je Spotify-app en voeg elke host toe onder User Management (max. 5).
+
+Gratis Render: de server gaat na 15 min zonder verkeer slapen en start daarna
+in ongeveer een minuut weer op. Kamers staan in het geheugen en zijn weg bij een
+herstart; spelers komen dan terug in het menu.
