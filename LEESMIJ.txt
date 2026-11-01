@@ -33,6 +33,14 @@ Exact jaartal raden (aan/uit in de lobby):
   wie het exacte jaartal heeft wint de kaart en krijgt extra punten.
   Je kunt titel & artiest en jaartal los van elkaar aan- of uitzetten.
 
+Automatisch onthullen (aan/uit in de lobby, standaard aan):
+  Zodra alle acties zijn gedaan wordt de kaart na ongeveer 2 seconden vanzelf
+  onthuld, zonder dat de host hoeft te tikken. De muziek stopt dan ook vanzelf.
+  Individueel: alle verbonden spelers hebben ingediend. Teams: het team aan zet
+  heeft geplaatst en de tegenstander heeft ingebroken of gepast (heeft die geen
+  fiches, dan is het meteen klaar). De host kan altijd nog zelf eerder onthullen.
+  Als iemand wegvalt wordt er niet vanzelf onthuld; de host tikt dan zelf.
+
 Fiches:
   Je begint met 2 fiches (in teams: het team). Je verdient er 1 met een goed
   jaartal of met een goede titel & artiest (maximaal 5). Met 3 fiches kun je een

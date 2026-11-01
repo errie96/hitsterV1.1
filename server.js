@@ -123,6 +123,8 @@ const SWAP_COST = 3; // een ander nummer kiezen kost 3 fiches
 const TARGETS = [0, 5, 7, 10, 15, 20]; // 0 = geen limiet
 const HOST_GRACE_MS = Number(process.env.HOST_GRACE_MS) || 15 * 60 * 1000;  // kamer blijft bestaan als de host weg is
 const LOBBY_GRACE_MS = Number(process.env.LOBBY_GRACE_MS) || 10 * 60 * 1000; // speler in de lobby die wegvalt mag terugkomen
+// Korte pauze voordat de kaart vanzelf wordt onthuld, zodat iedereen de laatste keuze nog even ziet
+const autoRevealDelay = () => Number(process.env.AUTO_REVEAL_MS) || 2000;
 const ACTIVE_GRACE_MS = Number(process.env.ACTIVE_GRACE_MS) || 15 * 1000;   // speler aan zet die wegvalt: beurt overdragen
 
 const TEAM_DEFS = {
@@ -309,6 +311,7 @@ function scheduleDropHandling(room, player) {
 
 function closeRoom(room, notify) {
   clearTimeout(room.hostTimer);
+  clearTimeout(room.revealTimer);
   for (const p of playersOf(room)) {
     clearTimeout(p.dropTimer);
     if (p.socketId) delete socketIndex[p.socketId];
@@ -528,17 +531,54 @@ function hostTr(room) {
   };
 }
 
+// Zijn alle acties gedaan? Teams: het team aan zet heeft geplaatst en de tegenstander heeft ingebroken of gepast.
+// Individueel: alle verbonden spelers hebben ingediend.
+function submissionStatus(room) {
+  if (room.settings.mode === 'teams') {
+    const a = room.active;
+    return { submitted: a && a.submitted ? 1 : 0, total: 1, allReady: !!(a && a.submitted && a.steal.status !== 'pending') };
+  }
+  const online = connectedPlayers(room);
+  const done = online.filter(p => p.submitted).length;
+  return { submitted: done, total: online.length, allReady: online.length > 0 && done === online.length };
+}
+
+// De kaart onthullen (door de host, of vanzelf als alles binnen is)
+function doReveal(room) {
+  clearTimeout(room.revealTimer);
+  room.revealTimer = null;
+  if (room.state !== 'GAME' || room.phase !== 'ACTIVE' || !room.currentTrack) return false;
+
+  room.lastReveal = room.settings.mode === 'teams' ? revealTeams(room) : revealSolo(room);
+  room.phase = 'REVEALED';
+  buildJudgements(room);
+
+  const winner = checkWinner(room);
+  if (winner) {
+    room.winner = winner;
+    room.state = 'OVER';
+  }
+  broadcastState(room);
+  return true;
+}
+
+// Alles binnen? Dan onthult de server de kaart na een korte pauze, zonder dat de host hoeft te tikken.
+// Alleen na een echte actie van een speler (niet als iemand wegvalt).
+function maybeScheduleAutoReveal(room) {
+  if (!room.settings.autoReveal || room.revealTimer || room.swap) return;
+  if (room.state !== 'GAME' || room.phase !== 'ACTIVE' || !submissionStatus(room).allReady) return;
+  const round = room.round;
+  room.revealTimer = setTimeout(() => {
+    room.revealTimer = null;
+    if (rooms[room.pin] === room && room.phase === 'ACTIVE' && room.round === round && !room.swap && submissionStatus(room).allReady) {
+      doReveal(room);
+    }
+  }, autoRevealDelay());
+}
+
 function hostSnapshot(room) {
   const teamMode = room.settings.mode === 'teams';
-  const online = connectedPlayers(room);
-  let status;
-  if (teamMode) {
-    const a = room.active;
-    status = { submitted: a && a.submitted ? 1 : 0, total: 1, allReady: !!(a && a.submitted && a.steal.status !== 'pending') };
-  } else {
-    const done = online.filter(p => p.submitted).length;
-    status = { submitted: done, total: online.length, allReady: online.length > 0 && done === online.length };
-  }
+  const status = submissionStatus(room);
   return {
     pin: room.pin,
     settings: room.settings,
@@ -546,6 +586,7 @@ function hostSnapshot(room) {
     phase: room.phase,
     round: room.round,
     turn: room.turn,
+    revealing: !!room.revealTimer,
     swap: room.swap ? { byName: room.swap.byName, teamName: room.swap.teamId && room.teams ? room.teams[room.swap.teamId].name : null } : null,
     players: playersOf(room).map(p => {
       const own = teamMode && room.teams ? room.teams[p.teamId] : p;
@@ -635,6 +676,7 @@ function playerSnapshot(room, p) {
     phase: room.phase,
     round: room.round,
     turn: room.turn,
+    revealing: !!room.revealTimer,
     swap: room.swap ? { byName: room.swap.byName } : null,
     canSwap: canSwapNow(room, p),
     swapCost: SWAP_COST,
@@ -713,12 +755,13 @@ io.on('connection', (socket) => {
       hostSocketId: socket.id,
       hostConnected: true,
       hostTimer: null,
-      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, category: 'original' },
+      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, autoReveal: true, category: 'original' },
       state: 'LOBBY',        // LOBBY | GAME | OVER
       phase: 'IDLE',         // IDLE | ACTIVE | REVEALED
       round: 0,              // telt elk nummer (ook een vervangen nummer); de pagina wist hiermee invoer
       turn: 0,               // telt beurten; een ander nummer is geen nieuwe beurt
       swap: null,            // lopend verzoek om een ander nummer
+      revealTimer: null,     // loopt als alles binnen is en de kaart vanzelf wordt onthuld
       players: {},
       teams: null,
       turnIdx: { A: 0, B: 0 },
@@ -755,6 +798,7 @@ io.on('connection', (socket) => {
     if (TARGETS.includes(Number(s.target))) room.settings.target = Number(s.target);
     if (typeof s.guessTitle === 'boolean') room.settings.guessTitle = s.guessTitle;
     if (typeof s.guessYear === 'boolean') room.settings.guessYear = s.guessYear;
+    if (typeof s.autoReveal === 'boolean') room.settings.autoReveal = s.autoReveal;
     if (typeof s.category === 'string') room.settings.category = s.category.slice(0, 20);
     broadcastState(room);
   });
@@ -812,6 +856,8 @@ io.on('connection', (socket) => {
     if (!room || room.state !== 'GAME') return;
     if (!track || !track.title || !track.artist || !Number.isFinite(Number(track.year))) return;
 
+    clearTimeout(room.revealTimer);
+    room.revealTimer = null;
     const isSwap = !!room.swap;
     const keep = isSwap && room.active ? { teamId: room.active.teamId, playerId: room.active.playerId } : null;
     refundOpenRound(room);
@@ -838,18 +884,7 @@ io.on('connection', (socket) => {
 
   socket.on('reveal_track', () => {
     const room = hostRoom(socket);
-    if (!room || room.state !== 'GAME' || room.phase !== 'ACTIVE' || !room.currentTrack) return;
-
-    room.lastReveal = room.settings.mode === 'teams' ? revealTeams(room) : revealSolo(room);
-    room.phase = 'REVEALED';
-    buildJudgements(room);
-
-    const winner = checkWinner(room);
-    if (winner) {
-      room.winner = winner;
-      room.state = 'OVER';
-    }
-    broadcastState(room);
+    if (room) doReveal(room);
   });
 
   // De host keurt een titel/artiest-gok goed of af (spelfouten!). Goed = +1 fiche.
@@ -993,6 +1028,7 @@ io.on('connection', (socket) => {
       player.submitted = true;
       player.guess = { slotIndex: slotOk ? slot : null, exactYear, usedToken, title, artist };
     }
+    maybeScheduleAutoReveal(room);
     broadcastState(room);
   });
 
@@ -1011,6 +1047,7 @@ io.on('connection', (socket) => {
 
     opp.tokens -= 1;
     a.steal = { status: 'stolen', teamId: opp.id, playerId: player.id, slotIndex, paid: true };
+    maybeScheduleAutoReveal(room);
     broadcastState(room);
   });
 
@@ -1021,6 +1058,7 @@ io.on('connection', (socket) => {
     if (!a || !a.submitted || a.steal.status !== 'pending') return;
     if (player.teamId !== otherTeam(a.teamId)) return;
     a.steal.status = 'passed';
+    maybeScheduleAutoReveal(room);
     broadcastState(room);
   });
 

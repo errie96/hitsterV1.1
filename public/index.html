@@ -608,6 +608,11 @@
       <span>Exact jaartal raden toestaan. Het spel controleert dit zelf. Goed = +1 fiche.</span>
     </label>
 
+    <label class="check-row">
+      <input type="checkbox" id="auto-reveal-check" checked onchange="pushSettings()">
+      <span>De kaart automatisch onthullen zodra iedereen klaar is (scheelt jou een tik).</span>
+    </label>
+
     <p class="rules-note">🪙 <strong>Fiches:</strong> je begint met 2. Je verdient er 1 met een goed jaartal of een goede titel &amp; artiest. Met 3 fiches kun je een ander nummer laten kiezen (kost 3 fiches).</p>
 
     <label style="font-size: 0.8rem; color: var(--text-dim); text-align: left;">Kies Hitster Editie / Categorie:</label>
@@ -818,6 +823,7 @@
     let pendingAutoStart = false;
     let hostBusy = false;
     let hostAnimRound = null;
+    let hostRevealPausedRound = null;   // voor welke ronde de muziek al is gestopt bij het onthullen
     let hostSwapHandled = null;   // voor welk nummer het verzoek om een ander nummer al is opgepakt
 
     // Na het inloggen bij Spotify komt het popup-venster hier terug; dat venster mag geen spel hervatten
@@ -983,6 +989,7 @@
       $('target-select').value = String(st.target);
       $('guess-title-check').checked = !!st.guessTitle;
       $('guess-year-check').checked = st.guessYear !== false;
+      $('auto-reveal-check').checked = st.autoReveal !== false;
       $('category-select').value = st.category;
     }
 
@@ -992,6 +999,7 @@
         target: Number($('target-select').value),
         guessTitle: $('guess-title-check').checked,
         guessYear: $('guess-year-check').checked,
+        autoReveal: $('auto-reveal-check').checked,
         category: $('category-select').value
       });
     }
@@ -1106,13 +1114,22 @@
 
       setHidden('host-play-btn', idle);
 
+      // De kaart kan vanzelf onthuld worden: dan hier de muziek stoppen (de host tikte niet zelf)
+      if (revealed && hostRevealPausedRound !== s.round) {
+        hostRevealPausedRound = s.round;
+        hostAudio.pause();
+        spotifyPause();
+        vinyl.classList.remove('spinning');
+        setPlayBtn('replay');
+      }
+
       // Onthullen
       const rb = $('host-reveal-btn');
       if (active) {
         rb.classList.remove('hidden');
         if (s.status.allReady) {
           rb.disabled = false;
-          rb.innerText = 'Onthul Kaart & Scores 👀';
+          rb.innerText = s.revealing ? 'Onthul nu 👀 (gaat vanzelf)' : 'Onthul Kaart & Scores 👀';
           rb.classList.add('btn-submit');
           setHidden('host-force-reveal', true);
         } else {
@@ -1457,6 +1474,7 @@
 
     function playerBanner(s) {
       if (s.swap && s.phase === 'ACTIVE') return { color: '#ffd23f', text: `🔄 ${s.swap.byName} koos een ander nummer (3 fiches). Het nieuwe nummer wordt gezocht…` };
+      if (s.revealing && s.phase === 'ACTIVE') return { color: '#22e08a', text: '👀 Alle keuzes zijn binnen. De kaart wordt onthuld…' };
       const tr = s.tr;
       if (s.mode !== 'teams' || !tr || s.phase === 'REVEALED') return null;
       const color = tr.activeColor;
