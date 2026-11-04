@@ -48,6 +48,34 @@ Fiches:
   je keuze hebt ingediend. In teams kan alleen de speler aan zet dit doen, en
   die blijft daarna aan zet. De host zoekt het nieuwe nummer automatisch.
 
+Hitster-categorieën (zelfde opzet als de familiequiz):
+  De categorieën komen uit data/Hitster-bibliotheek.xlsx, dezelfde bibliotheek als
+  in de familiequiz. Elk tabblad "Hitster - <categorie>" is een categorie
+  (Original, 100% NL, Guilty Pleasures ... en Battle in drie tijdvakken).
+  Uitleg en Bronnen worden overgeslagen; uit Bronnen komt per tabblad de link naar
+  de officiële HITSTER-playlist op Spotify.
+  Kolommen: Titel, Artiest, Jaar, Startkaart (Ja = mag beginkaart zijn),
+  Jaar check (Ja = jaartal controleren via Spotify), Bron, Audio (optioneel:
+  Spotify-tracklink of link naar een eigen audiobestand).
+  De host kan in de lobby een andere Excel uploaden of opnieuw laden; een aangepast
+  bestand in data/ wordt vanzelf opnieuw ingelezen.
+
+  Welk nummer wordt er gespeeld?
+  1. Spotify verbonden: een willekeurig nummer uit de officiële HITSTER-playlist
+     van die categorie (link uit Bronnen, anders automatisch gezocht).
+  2. Lukt dat niet: een nummer uit de Excel, opgezocht op Spotify.
+  3. Geen Spotify: hetzelfde Excel-nummer als iTunes-preview (of eigen Audio).
+  Het jaartal komt uit de Excel. Staat Jaar check op Ja, dan zoekt de app de
+  eerste uitgave op en neemt alleen een vroeger jaar over (remasters!).
+  Startkaarten: eerst nummers met Startkaart = Ja, dan nummers zonder Jaar check,
+  dan de rest. Nummers worden binnen een spel niet herhaald.
+
+  Let op (Spotify-regels sinds 2026): een playlist die niet van jou is kan de app
+  niet uitlezen, wel afspelen. Daarom start de app de HITSTER-playlist even
+  zonder geluid op een willekeurige plek om te zien welk nummer daar staat.
+  Render (gratis): een Excel die je in de lobby uploadt, is na een herstart weg.
+  Zet wijzigingen daarom in data/ in je GitHub-repo.
+
 Sessieherstel:
   Wie de pagina ververst of even geen verbinding heeft, komt terug waar hij was
   (ook de host). Via "Spel verlaten" / "Spel afsluiten" ruim je de sessie op.
@@ -63,7 +91,8 @@ Terugkomen na wegklikken:
     De host kan spelers met het kruisje uit de lobby halen.
 
 Online zetten via Render:
-  1. Zet de INHOUD van deze map (server.js, package.json, render.yaml, public/)
+  1. Zet de INHOUD van deze map (server.js, hitster-library.js, package.json,
+     render.yaml, public/, data/)
      in de root van je GitHub-repo. Dus niet de map "hitster" zelf.
   2. Render > New > Web Service > kies je repo.
      Build command: npm install   Start command: npm start   Instance type: Free

@@ -2,7 +2,7 @@
 // Doel: installeerbaar maken en de app-schil snel laden.
 // Het spel zelf heeft altijd internet nodig (Socket.IO, iTunes, Spotify), dus die
 // verzoeken laten we ongemoeid.
-const CACHE = 'hitster-shell-v1';
+const CACHE = 'hitster-shell-v2';
 const SHELL = [
   '/',
   '/manifest.json',
@@ -30,7 +30,7 @@ self.addEventListener('fetch', (event) => {
 
   // Alleen eigen GET-verzoeken; Socket.IO, Spotify en iTunes gaan direct naar het netwerk
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/socket.io/')) return;
+  if (url.pathname.startsWith('/socket.io/') || url.pathname.startsWith('/api/')) return;
 
   // De pagina zelf: eerst netwerk (dan krijg je altijd de nieuwste versie), anders de cache
   if (req.mode === 'navigate') {

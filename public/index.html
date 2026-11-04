@@ -390,6 +390,18 @@
     .spotify-box code { background: #0c0c14; padding: 1px 5px; border-radius: 4px; color: #fff; }
     .btn-spotify { background: #1ed760; color: #02130b; border: none; box-shadow: 0 0 16px rgba(30, 215, 96, 0.35); }
     .btn-spotify:hover { box-shadow: 0 0 24px rgba(30, 215, 96, 0.6); }
+    /* Hitster-categorieën (Excel + HITSTER-playlist) */
+    .hitlib-box {
+      text-align: left; background: #0d0b1a; border: 1px solid rgba(139, 92, 246, 0.45);
+      border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .hitlib-box > label { font-size: 0.8rem; color: var(--text-dim); font-weight: 700; }
+    .hitlib-box details { font-size: 0.78rem; color: var(--text-dim); }
+    .hitlib-box summary { cursor: pointer; font-weight: 700; color: #a78bfa; margin-bottom: 6px; }
+    .hitlib-box input[type=text] { font-size: 0.78rem; padding: 8px; text-align: left; margin-bottom: 6px; }
+    .hitlib-box code { background: #0c0c14; padding: 1px 5px; border-radius: 4px; color: #fff; }
+    .hitlib-box .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .hitlib-warn { color: var(--accent-gold); }
     .host-source { font-size: 0.75rem; color: var(--text-dim); min-height: 1.1em; }
     .host-source.warn { color: var(--accent-gold); }
     .spotify-overlay {
@@ -615,16 +627,32 @@
 
     <p class="rules-note">🪙 <strong>Fiches:</strong> je begint met 2. Je verdient er 1 met een goed jaartal of een goede titel &amp; artiest. Met 3 fiches kun je een ander nummer laten kiezen (kost 3 fiches).</p>
 
-    <label style="font-size: 0.8rem; color: var(--text-dim); text-align: left;">Kies Hitster Editie / Categorie:</label>
-    <select id="category-select" onchange="pushSettings()">
-      <option value="original">Hitster Original (Klassiekers & Wereldhits)</option>
-      <option value="guilty">Hitster Guilty Pleasures (Fout & Meezingers)</option>
-      <option value="rock">Hitster Rock Classics (Rock, Metal & Gitaar)</option>
-      <option value="nederpop">Hitster Nederpop (100% Nederlandse Hits)</option>
-      <option value="summer">Hitster Summer Party (Zomer- & Strandhits)</option>
-      <option value="80s90s">Hitster 80s & 90s Edition</option>
-      <option value="00s10s">Hitster 00s & 10s Millennium</option>
-    </select>
+    <!-- Hitster-editie / categorie: tabbladen uit de Hitster-Excel, gekoppeld aan de HITSTER-playlists op Spotify -->
+    <div class="hitlib-box">
+      <label for="category-select">🃏 Hitster-editie / categorie</label>
+      <select id="category-select" onchange="hitlibCategoryChanged()">
+        <option value="original">Hitster Original (Klassiekers & Wereldhits)</option>
+        <option value="guilty">Hitster Guilty Pleasures (Fout & Meezingers)</option>
+        <option value="rock">Hitster Rock Classics (Rock, Metal & Gitaar)</option>
+        <option value="nederpop">Hitster Nederpop (100% Nederlandse Hits)</option>
+        <option value="summer">Hitster Summer Party (Zomer- & Strandhits)</option>
+        <option value="80s90s">Hitster 80s & 90s Edition</option>
+        <option value="00s10s">Hitster 00s & 10s Millennium</option>
+      </select>
+      <p id="hitlib-info" class="spotify-info">Hitster-Excel laden…</p>
+      <p id="hitlib-playlist" class="spotify-info"></p>
+      <details>
+        <summary>Excel &amp; HITSTER-playlist</summary>
+        <p class="spotify-info">Met Spotify verbonden speelt het spel uit de officiële HITSTER-playlist van deze editie. Lukt dat niet, dan pakt het een nummer uit de Excel en zoekt dat op Spotify (zonder Spotify: als iTunes-preview). Het jaartal komt uit de Excel zodra het nummer daarin staat.</p>
+        <label for="hitlib-playlist-input" style="display:block; font-weight:700; margin:6px 0 3px;">Eigen HITSTER-playlist voor deze categorie (link, optioneel)</label>
+        <input type="text" id="hitlib-playlist-input" placeholder="https://open.spotify.com/playlist/…" onchange="hitlibSavePlaylist()">
+        <div class="row">
+          <button class="btn btn-secondary small-btn" style="width:auto" onclick="document.getElementById('hitlib-file').click()">📗 Andere Excel uploaden</button>
+          <button class="link-btn" onclick="hitlibLoad()">Excel opnieuw laden</button>
+        </div>
+        <input type="file" id="hitlib-file" accept=".xlsx" class="hidden" onchange="hitlibUpload(this)">
+      </details>
+    </div>
 
     <!-- Spotify (optioneel) -->
     <div class="spotify-box">
@@ -971,6 +999,7 @@
       if (!hostInitialized) {
         hostInitialized = true;
         applySettingsToControls(s.settings);
+        hitlibLoad();
         spotifyInitLobby();
         startKeepAlive();
       }
@@ -990,7 +1019,7 @@
       $('guess-title-check').checked = !!st.guessTitle;
       $('guess-year-check').checked = st.guessYear !== false;
       $('auto-reveal-check').checked = st.autoReveal !== false;
-      $('category-select').value = st.category;
+      hitlibSelect(st.category);
     }
 
     function pushSettings() {
@@ -1265,8 +1294,16 @@
       }
     }
 
-    // ---------- Nummers kiezen en afspelen ----------
-    // Hitster Categorieën & iTunes Zoektermen
+    // =====================================================================
+    // HITSTER-CATEGORIEËN (zelfde opzet als de familiequiz)
+    // Categorieën = tabbladen van de Hitster-Excel (nummers van de Primera-websites).
+    // Bron 1: de officiële HITSTER-playlist van die editie op Spotify (host verbonden)
+    // Bron 2: een nummer uit de Excel, opgezocht op Spotify
+    // Bron 3: hetzelfde Excel-nummer als iTunes-preview
+    // Het jaartal komt uit de Excel zodra het nummer daarin staat.
+    // Geen Excel? Dan de oude ingebouwde categorieën met zoektermen.
+    // =====================================================================
+    const MIX_ID = '__mix__';
     const CATEGORY_SEARCH = {
       original: ["top hits", "billboard classics", "pop classics", "world hits"],
       guilty: ["guilty pleasures", "meezingers", "90s party hits", "eurodance", "boybands hits"],
@@ -1276,10 +1313,454 @@
       "80s90s": ["80s pop hits", "90s smash hits", "80s greatest", "90s dance"],
       "00s10s": ["2000s radio hits", "2010s pop anthems", "top hits 2010"]
     };
+    const HL_LEGACY_OPTIONS = $('category-select').innerHTML;
+    const HL_LS_PLAYLISTS = 'hitster_category_playlists';   // eigen playlist-links per categorie
+    // Alleen echt andere opnames overslaan; een remaster is prima (het jaartal komt uit de Excel)
+    const HL_SKIP = /(karaoke|tribute|instrumental|\blive\b|sped up|slowed|cover|made famous)/i;
 
+    let hitLib = null;              // { file, categories: [{ id, name, playlist, minYear, maxYear, songs }] }
+    let hitLibLoaded = false;
+    let hlByTitle = new Map();      // genormaliseerde titel -> nummers (om jaartallen op te zoeken)
+    let hlPlaylistCache = {};       // categorie-id -> { id, name, total, maxPos } of null
+    let hlMissing = new Set();      // Excel-nummers die niet te vinden waren
+    let hlShowToken = 0;
+
+    // ---------- Tekst vergelijken (titels en artiesten met typ- en schrijfverschillen) ----------
+    function hlNorm(s) {
+      return String(s || '').split(' - ')[0].toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\(.*?\)|\[.*?\]/g, ' ')
+        .replace(/\b(feat|ft|featuring)\b.*$/, ' ')
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9 ]/g, ' ')
+        .replace(/^the /, '')
+        .replace(/\s+/g, ' ').trim();
+    }
+    function hlLev(a, b) {
+      const m = a.length, n = b.length;
+      if (!m || !n) return m || n;
+      let prev = Array.from({ length: n + 1 }, (_, j) => j);
+      for (let i = 1; i <= m; i++) {
+        const cur = [i];
+        for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = cur;
+      }
+      return prev[n];
+    }
+    function hlSimilar(x, y) {
+      const a = hlNorm(x), b = hlNorm(y);
+      if (!a || !b) return false;
+      if (a === b) return true;
+      if (Math.min(a.length, b.length) >= 5 && (a.includes(b) || b.includes(a))) return true;
+      return 1 - hlLev(a, b) / Math.max(a.length, b.length) >= 0.8;
+    }
+    const hlArtistParts = (s) => String(s || '').split(/,|&|\band\b|\ben\b|\bfeat\.?\b|\bft\.?\b|\bx\b|\bvs\.?\b|\bmet\b/i).map(p => p.trim()).filter(Boolean);
+    function hlArtistMatch(a, b) {
+      if (hlSimilar(a, b)) return true;
+      const pa = hlArtistParts(a), pb = hlArtistParts(b);
+      return pa.some(x => pb.some(y => hlSimilar(x, y)));
+    }
+    const hlKey = (title, artist) => hlNorm(title) + '|' + hlNorm(hlArtistParts(artist)[0] || artist);
+
+    // Zoek een Spotify-nummer terug in de Excel (voor het juiste Hitster-jaartal)
+    function hlMatchSong(title, artists) {
+      const list = hlByTitle.get(hlNorm(title)) || [];
+      const names = [].concat(artists || []);
+      const hit = list.find(s => names.some(a => hlArtistMatch(a, s.artist)));
+      if (hit) return hit;
+      // Titel net anders geschreven: alle nummers van deze artiest langslopen
+      for (const songs of hlByTitle.values()) {
+        for (const s of songs) {
+          if (names.some(a => hlArtistMatch(a, s.artist)) && hlSimilar(title, s.title)) return s;
+        }
+      }
+      return null;
+    }
+
+    // Wat is er al gebruikt (startkaarten en gespeelde nummers, bijgehouden door de server)
+    function hlUsedKeys() {
+      return new Set(((hs && hs.used) || []).map(t => hlKey(t.title, t.artist)));
+    }
+    function hlPickSong(songs) {
+      const used = hlUsedKeys();
+      const free = songs.filter(s => {
+        const k = hlKey(s.title, s.artist);
+        return !used.has(k) && !hlMissing.has(k);
+      });
+      return free.length ? free[Math.floor(Math.random() * free.length)] : null;
+    }
+
+    // Jaar check = Ja: het Excel-jaartal kan van een remaster of verzamelalbum zijn.
+    // Vinden we een vroegere uitgave, dan nemen we dat jaar over (alleen een vróéger jaar, net als in de familiequiz).
+    const hlYearFix = new Map();
+    function hlYear(song, firstYear) {
+      const k = hlKey(song.title, song.artist);
+      if (song.check && firstYear && firstYear >= 1900 && firstYear < song.year) {
+        const prev = hlYearFix.get(k);
+        if (!prev || firstYear < prev) hlYearFix.set(k, firstYear);
+      }
+      return hlYearFix.get(k) || song.year;
+    }
+
+    // ---------- Excel laden en de keuzelijst vullen ----------
+    async function hitlibLoad() {
+      try {
+        const res = await fetch('/api/hitster-library', { cache: 'no-store' });
+        hitlibApply(await res.json());
+      } catch (e) {
+        hitlibApply(null);
+      }
+    }
+
+    function hitlibApply(d) {
+      hitLib = d && d.ok && d.categories && d.categories.length ? d : null;
+      hitLibLoaded = true;
+      hlPlaylistCache = {};
+      hlMissing = new Set();
+      hlByTitle = new Map();
+      const sel = $('category-select');
+      const info = $('hitlib-info');
+
+      if (hitLib) {
+        for (const c of hitLib.categories) {
+          for (const s of c.songs) {
+            const k = hlNorm(s.title);
+            if (!hlByTitle.has(k)) hlByTitle.set(k, []);
+            hlByTitle.get(k).push(s);
+          }
+        }
+        const total = hitLib.categories.reduce((n, c) => n + c.songs.length, 0);
+        sel.innerHTML = hitLib.categories.map(c =>
+          `<option value="${esc(c.id)}">${esc(c.name)} (${c.songs.length} · ${c.minYear}–${c.maxYear})</option>`
+        ).join('') + `<option value="${MIX_ID}">🎲 Alles door elkaar (${total})</option>`;
+        info.innerHTML = `📗 <strong>${esc(hitLib.file)}</strong>: ${hitLib.categories.length} categorieën, ${total} nummers.` +
+          (hitLib.warnings && hitLib.warnings.length ? `<br><span class="hitlib-warn">⚠️ ${hitLib.warnings.map(esc).join('<br>⚠️ ')}</span>` : '');
+      } else {
+        sel.innerHTML = HL_LEGACY_OPTIONS;
+        info.innerHTML = '<span class="hitlib-warn">Geen Hitster-Excel gevonden.</span> Zet je Excel in de map <code>data/</code> van de app, of upload hem hieronder. Tot die tijd gebruikt het spel de ingebouwde categorieën.';
+      }
+      hitlibSelect(hs && hs.settings ? hs.settings.category : null);
+    }
+
+    // Categorie van de server tonen; bestaat die niet (meer), dan de eerste kiezen
+    function hitlibSelect(cat) {
+      const sel = $('category-select');
+      if (!sel) return;
+      const exists = [...sel.options].some(o => o.value === cat);
+      if (exists) sel.value = cat;
+      else if (hitLibLoaded && sel.options.length) {
+        sel.value = sel.options[0].value;
+        if (hs && hs.state === 'LOBBY') pushSettings();
+      }
+      hitlibShowPlaylist();
+    }
+
+    function hitlibCategoryChanged() {
+      pushSettings();
+      hitlibShowPlaylist();
+    }
+
+    function hlCategory(id) {
+      return hitLib ? hitLib.categories.find(c => c.id === id) || null : null;
+    }
+
+    // ---------- Officiële HITSTER-playlist op Spotify ----------
+    function hlOwnLinks() {
+      try { return JSON.parse(localStorage.getItem(HL_LS_PLAYLISTS)) || {}; } catch (e) { return {}; }
+    }
+    function hlPlaylistId(link) {
+      const m = String(link || '').match(/playlist[\/:]([A-Za-z0-9]{22})/) || String(link || '').trim().match(/^([A-Za-z0-9]{22})$/);
+      return m ? m[1] : null;
+    }
+    function hitlibSavePlaylist() {
+      const cat = $('category-select').value;
+      if (cat === MIX_ID || !hlCategory(cat)) return;
+      const links = hlOwnLinks();
+      const v = $('hitlib-playlist-input').value.trim();
+      if (v && !hlPlaylistId(v)) {
+        $('hitlib-playlist').innerHTML = '<span class="hitlib-warn">Dit is geen Spotify-playlistlink.</span>';
+        return;
+      }
+      if (v) links[cat] = v; else delete links[cat];
+      localStorage.setItem(HL_LS_PLAYLISTS, JSON.stringify(links));
+      delete hlPlaylistCache[cat];
+      hitlibShowPlaylist();
+    }
+
+    // Naam van de editie zonder "Hitster", jaartallen en tijdvakken (voor het zoeken op Spotify)
+    function hlSearchWords(name) {
+      const stop = new Set(['hitster', 'editie', 'edition', 'the', 'van', 'and', 'met', 'tot', 'of', 'en', 'de', 'het']);
+      // De Nederlandse Original-editie heet op Spotify "HITSTER - Nederlands"
+      const alias = { original: 'nederlands', origineel: 'nederlands' };
+      return hlNorm(String(name).replace(/\bt\s*\/?\s*m\b.*$/i, ' ').replace(/\b(19|20)\d{2}\b/g, ' '))
+        .split(' ').filter(w => w.length >= 2 && !stop.has(w)).map(w => alias[w] || w);
+    }
+
+    async function hlFindPlaylist(cat) {
+      if (!cat || !spActive) return null;
+      if (cat.id in hlPlaylistCache) return hlPlaylistCache[cat.id];
+      let found = null;
+      const ownId = hlPlaylistId(hlOwnLinks()[cat.id] || cat.playlist);
+      if (ownId) {
+        found = { id: ownId, name: 'eigen link' };
+      } else {
+        const words = hlSearchWords(cat.name);
+        if (!words.length) { hlPlaylistCache[cat.id] = null; return null; }
+        let res;
+        try {
+          res = await spApi('/search?type=playlist&limit=10&q=' + encodeURIComponent('HITSTER ' + words.join(' ')));
+        } catch (e) { return null; }
+        if (!res.ok) return null;   // niet onthouden: later nog eens proberen
+        const d = await res.json();
+        const items = ((d.playlists && d.playlists.items) || []).filter(p =>
+          p && p.id && /hitster/i.test(p.name || '') && p.owner &&
+          (/hitster/i.test(p.owner.display_name || '') || /hitster/i.test(p.owner.id || ''))
+        );
+        let bestScore = 0;
+        for (const p of items) {
+          const nm = hlNorm(p.name);
+          const score = words.filter(w => nm.includes(w)).length;
+          if (score > bestScore) { bestScore = score; found = { id: p.id, name: p.name }; }
+        }
+      }
+      if (found) {
+        // Naam en (als Spotify dat geeft) het aantal nummers ophalen
+        try {
+          const r = await spApi('/playlists/' + found.id + '?market=NL');
+          if (r.ok) {
+            const d = await r.json();
+            found.name = d.name || found.name;
+            const total = (d.items && d.items.total) || (d.tracks && d.tracks.total);
+            if (total) found.total = total;
+          }
+        } catch (e) {}
+      }
+      hlPlaylistCache[cat.id] = found;
+      return found;
+    }
+
+    async function hitlibShowPlaylist() {
+      const el = $('hitlib-playlist');
+      const input = $('hitlib-playlist-input');
+      if (!el) return;
+      const token = ++hlShowToken;
+      const catId = $('category-select').value;
+      const cat = hlCategory(catId);
+      input.value = cat ? (hlOwnLinks()[cat.id] || '') : '';
+      input.disabled = !cat;
+      if (!hitLib) { el.innerText = ''; return; }
+      if (catId === MIX_ID) { el.innerText = '🎲 Elke ronde een willekeurige categorie, met de HITSTER-playlist daarvan als Spotify verbonden is.'; return; }
+      if (!spActive) { el.innerText = '🎧 Verbind Spotify om rechtstreeks uit de officiële HITSTER-playlist te spelen. Zonder Spotify: Excel-nummers als preview.'; return; }
+      el.innerText = '🔎 HITSTER-playlist zoeken…';
+      const pl = await hlFindPlaylist(cat);
+      if (token !== hlShowToken) return;
+      el.innerHTML = pl
+        ? `🎧 Speelt uit <strong>${esc(pl.name)}</strong>${pl.total ? ` (${pl.total} nummers)` : ''}. Terugval: de Excel.`
+        : '<span class="hitlib-warn">Geen HITSTER-playlist gevonden voor deze categorie.</span> De nummers komen uit de Excel. Plak hieronder een playlistlink om er zelf een te koppelen.';
+    }
+
+    // Een playlist kan via de API niet uitgelezen worden als hij niet van jou is (Spotify-regels sinds 2026).
+    // Afspelen mag wel: we starten de playlist stil op een willekeurige plek en lezen welk nummer daar staat.
+    async function hlPlayContext(playlistId, position) {
+      const play = () => spApi('/me/player/play?device_id=' + encodeURIComponent(spDeviceId), {
+        method: 'PUT',
+        body: JSON.stringify({ context_uri: 'spotify:playlist:' + playlistId, offset: { position }, position_ms: 0 })
+      });
+      let res = await play();
+      if (res.status === 404) {
+        await spApi('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [spDeviceId], play: false }) });
+        await new Promise(r => setTimeout(r, 800));
+        res = await play();
+      }
+      return res;
+    }
+
+    async function hlWaitForTrack(playlistId, prevUri) {
+      for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        let st = null;
+        try { st = await spPlayer.getCurrentState(); } catch (e) {}
+        const t = st && st.track_window && st.track_window.current_track;
+        if (!t || !t.uri || t.uri === prevUri) continue;
+        const ctx = st.context && st.context.uri ? st.context.uri : '';
+        if (ctx.includes(playlistId) || i >= 6) return t;
+      }
+      return null;
+    }
+
+    // Jaartal via Spotify, alleen als het nummer niet in de Excel staat (verzamelalbums overslaan)
+    async function hlSpotifyYear(uri) {
+      const id = String(uri).split(':').pop();
+      try {
+        const r = await spApi('/tracks/' + id + '?market=NL');
+        if (!r.ok) return null;
+        const d = await r.json();
+        if (!d.album || d.album.album_type === 'compilation' || !d.album.release_date) return null;
+        return parseInt(d.album.release_date.slice(0, 4), 10) || null;
+      } catch (e) { return null; }
+    }
+
+    async function fetchFromHitsterPlaylist(cat) {
+      if (!spActive || !spPlayer || !spDeviceId) return null;
+      const pl = await hlFindPlaylist(cat);
+      if (!pl) return null;
+
+      let prevVol = 0.8;
+      try { prevVol = (await spPlayer.getVolume()) || 0.8; } catch (e) {}
+      try { await spPlayer.setVolume(0); } catch (e) {}
+      try {
+        const used = hlUsedKeys();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const limit = pl.maxPos || pl.total || 310;
+          let prevUri = null;
+          try { const st = await spPlayer.getCurrentState(); prevUri = st && st.track_window.current_track ? st.track_window.current_track.uri : null; } catch (e) {}
+
+          const res = await hlPlayContext(pl.id, Math.floor(Math.random() * limit));
+          if (res.status === 401 || res.status === 403 || res.status === 429) return null;
+          if (!res.ok) { pl.maxPos = Math.max(1, Math.floor(limit / 2)); continue; }   // waarschijnlijk voorbij het einde van de playlist
+
+          const t = await hlWaitForTrack(pl.id, prevUri);
+          try { await spPlayer.pause(); } catch (e) {}
+          if (!t) continue;
+
+          const artists = (t.artists || []).map(a => a.name);
+          const match = hlMatchSong(t.name, artists);
+          const title = match ? match.title : t.name;
+          const artist = match ? match.artist : artists.slice(0, 2).join(', ');
+          if (used.has(hlKey(title, artist)) || spPlayed.has(t.uri)) continue;
+
+          let year;
+          if (match) {
+            let firstYear = null;
+            if (match.check && !hlYearFix.has(hlKey(match.title, match.artist))) {
+              const f = await hlFindOnSpotify(match, false);
+              if (f) firstYear = f.firstYear;
+            }
+            year = hlYear(match, firstYear);
+          } else {
+            year = await hlSpotifyYear(t.uri);
+          }
+          if (!year) continue;
+          // Tabblad met een tijdvak (bijv. Battle t/m 1984): staat het nummer niet in dit tabblad, dan alleen uit die jaren
+          if (!(match && cat.songs.includes(match)) && cat.songs.length && (year < cat.minYear || year > cat.maxYear)) continue;
+
+          spPlayed.add(t.uri);
+          return { title, artist, year, previewUrl: '', uri: t.uri };
+        }
+        return null;
+      } catch (e) {
+        return null;
+      } finally {
+        try { await spPlayer.pause(); } catch (e) {}
+        try { await spPlayer.setVolume(prevVol); } catch (e) {}
+      }
+    }
+
+    // ---------- Excel-nummer opzoeken op Spotify ----------
+    // Geeft { uri, firstYear }, null (niet gevonden) of false (Spotify weigert: niet verder proberen)
+    async function hlFindOnSpotify(song, needUri) {
+      const direct = String(song.spotify || '').match(/track[\/:]([A-Za-z0-9]{22})/);
+      if (direct && (needUri !== false) && !song.check) return { uri: 'spotify:track:' + direct[1], firstYear: null };
+      const q1 = (s) => String(s).replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim();
+      const mainArtist = hlArtistParts(song.artist)[0] || song.artist;
+      const queries = [`track:"${q1(song.title)}" artist:"${q1(mainArtist)}"`, `${q1(song.title)} ${q1(mainArtist)}`];
+      for (const q of queries) {
+        let res;
+        try { res = await spApi('/search?type=track&limit=10&market=NL&q=' + encodeURIComponent(q)); } catch (e) { return false; }
+        if (res.status === 401 || res.status === 403 || res.status === 429) return false;
+        if (!res.ok) continue;
+        const d = await res.json();
+        const items = ((d.tracks && d.tracks.items) || []).filter(i =>
+          i && i.uri && i.is_playable !== false &&
+          hlSimilar(i.name, song.title) && (i.artists || []).some(a => hlArtistMatch(a.name, song.artist)) &&
+          (!HL_SKIP.test(i.name + ' ' + (i.album ? i.album.name : '')) || HL_SKIP.test(song.title))
+        );
+        if (!items.length) continue;
+        // Vroegste uitgave (geen verzamelalbum) voor de jaarcontrole
+        const years = items.filter(i => i.album && i.album.album_type !== 'compilation')
+          .map(i => parseInt(String(i.album.release_date || '').slice(0, 4), 10)).filter(y => y >= 1900);
+        const firstYear = years.length ? Math.min(...years) : null;
+        if (direct) return { uri: 'spotify:track:' + direct[1], firstYear };
+        // Liefst het album uit het (gecontroleerde) jaar, anders de bekendste versie
+        const want = String(hlYear(song, firstYear));
+        const sameYear = items.filter(i => i.album && String(i.album.release_date || '').startsWith(want));
+        const pool = sameYear.length ? sameYear : items;
+        pool.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        return { uri: pool[0].uri, firstYear };
+      }
+      return direct ? { uri: 'spotify:track:' + direct[1], firstYear: null } : null;
+    }
+
+    async function fetchExcelOnSpotify(songs) {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const song = hlPickSong(songs);
+        if (!song) return null;
+        const found = await hlFindOnSpotify(song);
+        if (found === false) return null;
+        if (found && !spPlayed.has(found.uri)) {
+          spPlayed.add(found.uri);
+          return { title: song.title, artist: song.artist, year: hlYear(song, found.firstYear), previewUrl: '', uri: found.uri };
+        }
+        hlMissing.add(hlKey(song.title, song.artist));
+      }
+      return null;
+    }
+
+    // ---------- Excel-nummer als iTunes-preview (zonder Spotify) ----------
+    async function fetchExcelOnItunes(songs) {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const song = hlPickSong(songs);
+        if (!song) return null;
+        // Eigen audiobestand uit de kolom Audio
+        if (song.audio && !song.check) return { title: song.title, artist: song.artist, year: song.year, previewUrl: song.audio };
+        try {
+          const term = (hlArtistParts(song.artist)[0] || song.artist) + ' ' + song.title;
+          const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=15&country=NL`);
+          const data = await res.json();
+          const matches = (data.results || []).filter(i => hlSimilar(i.trackName, song.title) && hlArtistMatch(i.artistName, song.artist) &&
+            (!HL_SKIP.test(i.trackName + ' ' + (i.collectionName || '')) || HL_SKIP.test(song.title)));
+          const years = matches.map(i => new Date(i.releaseDate).getFullYear()).filter(y => y >= 1900);
+          const year = hlYear(song, years.length ? Math.min(...years) : null);
+          if (song.audio) return { title: song.title, artist: song.artist, year, previewUrl: song.audio };
+          const item = matches.find(i => i.previewUrl);
+          if (item) return { title: song.title, artist: song.artist, year, previewUrl: item.previewUrl };
+        } catch (e) {}
+        hlMissing.add(hlKey(song.title, song.artist));
+      }
+      return null;
+    }
+
+    // ---------- Upload van een nieuwe Excel door de host ----------
+    async function hitlibUpload(input) {
+      const f = input.files && input.files[0];
+      input.value = '';
+      if (!f) return;
+      const sess = loadSession() || {};
+      $('hitlib-info').innerText = '📗 Excel uploaden…';
+      try {
+        const res = await fetch('/api/hitster-library', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'x-host-pin': currentPin || '',
+            'x-host-token': sess.hostToken || '',
+            'x-file-name': encodeURIComponent(f.name)
+          },
+          body: f
+        });
+        const d = await res.json();
+        if (!res.ok || !d.ok) throw new Error(d.error || 'Upload mislukt.');
+        hitlibApply(d);
+      } catch (e) {
+        $('hitlib-info').innerHTML = `<span class="hitlib-warn">❌ ${esc(e.message)}</span>`;
+      }
+    }
+
+    // ---------- Volgend nummer kiezen ----------
     let hostCurrentTrack = null;
     let hostTrackKey = null;
     let hostSourceNote = '';
+    let hostSourceLabel = '';
     const hostAudio = $('host-audio-player');
     const vinyl = $('vinyl-disc');
     const hostPlayBtn = $('host-play-btn');
@@ -1294,15 +1775,38 @@
         spStartedUri = null;
         vinyl.classList.remove('spinning');
 
-        const cat = (hs && hs.settings && hs.settings.category) || 'original';
+        const catId = (hs && hs.settings && hs.settings.category) || 'original';
         let track = null;
         hostSourceNote = '';
-        // Eerst Spotify proberen als de host verbonden is, anders iTunes-preview
-        if (spActive) {
-          track = await fetchSpotifyTrack(cat);
+        hostSourceLabel = '';
+
+        if (hitLib) {
+          const cat = hlCategory(catId);   // null = alles door elkaar
+          const pool = cat ? cat.songs : hitLib.categories.flatMap(c => c.songs);
+          if (spActive) {
+            // 1. Officiële HITSTER-playlist van deze editie
+            const plCat = cat || hitLib.categories[Math.floor(Math.random() * hitLib.categories.length)];
+            setHostSource('🔎 Nummer kiezen uit de HITSTER-playlist…');
+            track = await fetchFromHitsterPlaylist(plCat);
+            if (track) hostSourceLabel = '🎧 HITSTER-playlist · ' + plCat.name + ' · volledig nummer';
+            // 2. Excel-nummer op Spotify
+            if (!track) {
+              track = await fetchExcelOnSpotify(pool);
+              if (track) hostSourceLabel = '📗 Excel → Spotify · volledig nummer';
+            }
+            if (!track) hostSourceNote = 'Spotify gaf nu geen nummer terug, deze ronde is een preview.';
+          }
+          // 3. Excel-nummer als iTunes-preview
+          if (!track) {
+            track = await fetchExcelOnItunes(pool);
+            if (track) hostSourceLabel = '📗 Excel → iTunes-preview (30s)';
+          }
+          if (!track) hostSourceNote = 'Geen (nieuw) nummer uit de Excel gevonden, deze ronde is een willekeurige preview.';
+        } else if (spActive) {
+          track = await fetchSpotifyTrack(catId);
           if (!track) hostSourceNote = 'Spotify gaf nu geen nummer terug, deze ronde is een preview.';
         }
-        if (!track) track = await fetchItunesTrack(cat);
+        if (!track) track = await fetchItunesTrack(catId);
         socket.emit('new_track', { track });
       } finally {
         hostBusy = false;
@@ -1341,15 +1845,16 @@
       spStartedUri = null;
       if (track.uri) {
         hostAudio.removeAttribute('src');
-        setHostSource('🎧 Spotify: volledig nummer');
+        setHostSource(hostSourceNote || hostSourceLabel || '🎧 Spotify: volledig nummer', !!hostSourceNote);
       } else {
         if (track.previewUrl) {
           hostAudio.src = track.previewUrl;
           hostAudio.load();
         }
-        setHostSource(hostSourceNote || 'Bron: iTunes-preview (30s)', !!hostSourceNote);
+        setHostSource(hostSourceNote || hostSourceLabel || 'Bron: iTunes-preview (30s)', !!hostSourceNote);
       }
       hostSourceNote = '';
+      hostSourceLabel = '';
       setPlayBtn('play');
     }
 
@@ -2052,6 +2557,7 @@
         spDeviceId = device_id;
         spActive = true;
         spSetStatus('on', 'Verbonden: de nummers worden volledig afgespeeld via Spotify in dit browsertabblad.');
+        hitlibShowPlaylist();
         // Dit tabblad als afspeelapparaat instellen, zonder meteen af te spelen
         try { await spApi('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [device_id], play: false }) }); } catch (e) {}
       });
@@ -2083,6 +2589,7 @@
       spTeardownPlayer();
       localStorage.removeItem(SP_LS.tokens);
       spSetStatus('off', spDefaultInfo);
+      hitlibShowPlaylist();
     }
 
     function spotifyPause() {

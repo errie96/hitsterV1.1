@@ -3,12 +3,37 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const crypto = require('crypto');
+const hitsterLib = require('./hitster-library');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ---------- Hitster-Excel (categorieën + nummers) ----------
+function libraryPayload() {
+  const lib = hitsterLib.getLibrary();
+  if (!lib) return { ok: false, categories: [], warnings: [] };
+  return { ok: true, file: lib.file, loadedAt: lib.loadedAt, categories: lib.categories, warnings: lib.warnings };
+}
+
+app.get('/api/hitster-library', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(libraryPayload());
+});
+
+// Alleen een host met een geldige kamer mag een nieuwe Excel uploaden
+app.post('/api/hitster-library', express.raw({ type: () => true, limit: '15mb' }), (req, res) => {
+  const room = rooms[String(req.get('x-host-pin') || '')];
+  if (!room || room.hostToken !== req.get('x-host-token')) return res.status(403).json({ ok: false, error: 'Alleen de host kan een Excel uploaden.' });
+  try {
+    hitsterLib.replaceLibrary(req.body, decodeURIComponent(req.get('x-file-name') || 'hitster-liedjes.xlsx'));
+    res.json(libraryPayload());
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
 
 // Pool met bekende hits voor gevarieerde willekeurige startkaarten
 const STARTER_DECK = [
@@ -81,7 +106,41 @@ function takeFromPool(pool) {
   return pool.splice(idx, 1)[0];
 }
 
-async function getRandomStarters() {
+const trackKey = (t) => (String(t.title) + '|' + String(t.artist)).toLowerCase().replace(/\s+/g, ' ').trim();
+
+function markUsed(room, track) {
+  if (!room) return;
+  const key = trackKey(track);
+  if (!room.usedKeys.has(key)) {
+    room.usedKeys.add(key);
+    room.used.push({ title: track.title, artist: track.artist });
+  }
+}
+
+// Startkaarten uit de gekozen Hitster-categorie van de Excel (als die er is)
+// Voorkeur: nummers met Startkaart = Ja, dan nummers met een zeker jaartal (geen Jaar check), dan alles
+function startersFromLibrary(room) {
+  const free = hitsterLib.songsFor(room.settings.category).filter(t => !room.usedKeys.has(trackKey(t)));
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const pools = [free.filter(t => t.start), free.filter(t => !t.check), free];
+  let picked = [];
+  for (const pool of pools) {
+    for (const t of [...pool].sort(() => 0.5 - Math.random())) {
+      if (picked.length < 2 && !picked.some(p => p.year === t.year || p === t)) picked.push(t);
+    }
+    if (picked.length === 2) break;
+  }
+  if (picked.length < 2) return null;
+  return picked.map(cardOf);
+}
+
+async function getRandomStarters(room) {
+  const fromLib = room ? startersFromLibrary(room) : null;
+  if (fromLib) {
+    fromLib.forEach(t => markUsed(room, t));
+    return fromLib.sort((a, b) => a.year - b.year);
+  }
+
   if (starterPool.length < 2) await refillStarterPool();
   else if (starterPool.length < POOL_LOW) refillStarterPool(); // op de achtergrond
 
@@ -101,6 +160,7 @@ async function getRandomStarters() {
     const shuffled = [...STARTER_DECK].sort(() => 0.5 - Math.random());
     picked = [shuffled[0], shuffled[1]];
   }
+  picked.forEach(t => markUsed(room, t));
   return picked.sort((a, b) => a.year - b.year);
 }
 
@@ -131,6 +191,11 @@ const TEAM_DEFS = {
   A: { id: 'A', name: 'Team Roze', color: '#ff2e93' },
   B: { id: 'B', name: 'Team Cyaan', color: '#22d3ee' }
 };
+// Standaardcategorie: het eerste tabblad van de Excel, anders de oude ingebouwde lijst
+function defaultCategory() {
+  const lib = hitsterLib.getLibrary();
+  return lib && lib.categories.length ? lib.categories[0].id : 'original';
+}
 const otherTeam = (id) => (id === 'A' ? 'B' : 'A');
 
 // ---------- Hulpfuncties ----------
@@ -215,7 +280,7 @@ function artistMatches(guess, artist) {
 async function makeTeams(room) {
   room.teams = {};
   for (const id of ['A', 'B']) {
-    room.teams[id] = { ...TEAM_DEFS[id], timeline: await getRandomStarters(), tokens: START_TOKENS };
+    room.teams[id] = { ...TEAM_DEFS[id], timeline: await getRandomStarters(room), tokens: START_TOKENS };
   }
   room.turnIdx = { A: 0, B: 0 };
 }
@@ -603,6 +668,7 @@ function hostSnapshot(room) {
     }),
     teams: teamMode ? teamList(room) : null,
     track: room.phase === 'IDLE' ? null : room.currentTrack,
+    used: room.used,   // al gebruikte nummers (startkaarten en gespeeld), zodat de host niets herhaalt
     status,
     tr: teamMode && room.active && room.state !== 'LOBBY' ? hostTr(room) : null,
     reveal: room.phase === 'REVEALED' ? publicReveal(room) : null,
@@ -720,7 +786,7 @@ async function ensurePlayerStarters(room) {
   if (room.settings.mode === 'teams') return;
   for (const p of playersOf(room)) {
     if (!p.timeline.length) {
-      p.timeline = await getRandomStarters();
+      p.timeline = await getRandomStarters(room);
       p.score = p.timeline.length;
     }
   }
@@ -755,7 +821,7 @@ io.on('connection', (socket) => {
       hostSocketId: socket.id,
       hostConnected: true,
       hostTimer: null,
-      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, autoReveal: true, category: 'original' },
+      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, autoReveal: true, category: defaultCategory() },
       state: 'LOBBY',        // LOBBY | GAME | OVER
       phase: 'IDLE',         // IDLE | ACTIVE | REVEALED
       round: 0,              // telt elk nummer (ook een vervangen nummer); de pagina wist hiermee invoer
@@ -770,7 +836,9 @@ io.on('connection', (socket) => {
       lastReveal: null,
       judgements: {},
       winner: null,
-      starting: false
+      starting: false,
+      used: [],              // al gebruikte nummers
+      usedKeys: new Set()
     };
     rooms[pin] = room;
     socketIndex[socket.id] = { pin, role: 'host' };
@@ -799,7 +867,7 @@ io.on('connection', (socket) => {
     if (typeof s.guessTitle === 'boolean') room.settings.guessTitle = s.guessTitle;
     if (typeof s.guessYear === 'boolean') room.settings.guessYear = s.guessYear;
     if (typeof s.autoReveal === 'boolean') room.settings.autoReveal = s.autoReveal;
-    if (typeof s.category === 'string') room.settings.category = s.category.slice(0, 20);
+    if (typeof s.category === 'string') room.settings.category = s.category.slice(0, 80);
     broadcastState(room);
   });
 
@@ -868,6 +936,7 @@ io.on('connection', (socket) => {
       previewUrl: String(track.previewUrl || '').slice(0, 500),
       uri: String(track.uri || '').slice(0, 100)
     };
+    markUsed(room, room.currentTrack);
     room.round += 1;
     if (!isSwap) room.turn += 1;
     room.swap = null;

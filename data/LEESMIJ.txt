@@ -1,0 +1,4 @@
+Hier staat de Hitster-bibliotheek: Hitster-bibliotheek.xlsx (dezelfde als in de familiequiz).
+Elk tabblad "Hitster - <categorie>" is één categorie in de lobby.
+Het tabblad Bronnen koppelt elk tabblad aan de officiële HITSTER-playlist op Spotify.
+Een Excel die je in de lobby uploadt, wordt hier opgeslagen als hitster-liedjes.xlsx en gaat dan voor.
