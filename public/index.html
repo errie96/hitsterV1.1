@@ -540,6 +540,108 @@
 
     .hidden { display: none !important; }
 
+    /* ===== Meldingen (zonder geluid) ===== */
+    .toasts {
+      position: fixed; z-index: 97; left: 50%; transform: translateX(-50%);
+      top: max(12px, env(safe-area-inset-top)); width: min(92vw, 560px);
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      --tc: var(--accent-gold);
+      background: #0b0b14; color: #fff; border: 2px solid var(--tc); border-radius: 14px;
+      padding: 12px 16px; font-weight: 800; font-size: 0.95rem; line-height: 1.35; text-align: center;
+      box-shadow: 0 0 22px var(--tc), 0 10px 30px rgba(0,0,0,0.6);
+      animation: toastIn 0.35s cubic-bezier(.2, 1.3, .4, 1);
+    }
+    .toast.swap { --tc: var(--accent-gold); }
+    .toast.spiek { --tc: var(--accent-pink); }
+    .toast.out { opacity: 0; transform: translateY(-8px); transition: all 0.4s ease; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-14px) scale(0.95); } to { opacity: 1; transform: none; } }
+    .spiek-note { font-size: 0.8rem; color: #ffb4d6; background: rgba(255, 46, 147, 0.1); border: 1px solid rgba(255, 46, 147, 0.4); border-radius: 12px; padding: 8px 10px; }
+    .spiek-tag { color: #ff7ab8; font-weight: 800; }
+
+    /* ===== Schermgrootte: telefoon, tablet, tv ===== */
+    .lobby-top, .lobby-settings, .lobby-bottom, .host-stage { display: flex; flex-direction: column; gap: 12px; }
+    #view-host-lobby, #view-host-game { max-width: 520px; }
+
+    /* Kleine telefoons */
+    @media (max-width: 370px) {
+      body { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+      .logo { font-size: 2.1rem; }
+      .card { padding: 14px; border-radius: 18px; }
+      .hitster-card { min-width: 108px; max-width: 108px; height: 108px; }
+      .timeline-slot-btn { height: 108px; min-width: 34px; }
+      .card-year { font-size: 1.8rem; }
+      .pin-display { font-size: 2.8rem; letter-spacing: 5px; }
+    }
+    /* Telefoon liggend: minder ruimte voor de kop */
+    @media (max-height: 500px) and (orientation: landscape) {
+      header { margin-bottom: 6px; }
+      .logo { font-size: 1.6rem; }
+      header .sub { display: none; }
+    }
+    /* Tablets (spelers): bredere kaart en grotere kaarten in de tijdlijn */
+    @media (min-width: 700px) {
+      #view-player-game, #view-player-waiting, #view-player-join, #view-menu { max-width: 680px; }
+      #view-player-game .hitster-card { min-width: 150px; max-width: 150px; height: 150px; }
+      #view-player-game .timeline-slot-btn { height: 150px; min-width: 46px; }
+      #view-player-game .card-year { font-size: 2.5rem; }
+      #view-player-game .card-artist { font-size: 0.72rem; }
+      #view-player-game .card-title { font-size: 0.78rem; }
+      #view-player-game .hitster-card.mid { min-width: 200px; max-width: 200px; height: 200px; }
+      #view-player-game .hitster-card.mid .card-year { font-size: 3.5rem; }
+      .toast { font-size: 1.05rem; }
+    }
+    /* Groot scherm (laptop aan de tv): host in twee kolommen, alles meeschalend */
+    @media (min-width: 1000px) {
+      body.host-mode #view-host-lobby, body.host-mode #view-host-game { max-width: 1240px; }
+      body.host-mode header { margin-bottom: 10px; }
+      body.host-mode header .sub { display: none; }
+
+      #view-host-lobby {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
+        column-gap: 28px; row-gap: 12px; align-items: start;
+      }
+      #view-host-lobby .lobby-top { grid-column: 1; grid-row: 1; }
+      #view-host-lobby .lobby-bottom { grid-column: 1; grid-row: 2; }
+      #view-host-lobby .lobby-settings { grid-column: 2; grid-row: 1 / span 2; }
+      #view-host-lobby .pin-display { font-size: 6rem; letter-spacing: 14px; }
+      #view-host-lobby #host-lobby-players .player-chip { font-size: 1rem; padding: 8px 14px; }
+
+      #view-host-game {
+        display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+        column-gap: 28px; row-gap: 0; align-content: start;
+      }
+      #view-host-game > * { grid-column: 1; margin-bottom: 12px; }
+      #view-host-game > .host-stage { grid-column: 2; grid-row: 1 / span 30; align-self: start; margin-bottom: 0; }
+      #view-host-game .banner { font-size: 1rem; }
+      /* Uitslag: grote kaart links, uitleg en beoordelen rechts */
+      .host-stage .reveal-wrap[style*="flex"] {
+        display: grid !important; grid-template-columns: auto minmax(0, 1fr); column-gap: 20px; align-items: center; text-align: left;
+      }
+      .host-stage .reveal-wrap > .hitster-card.big { grid-row: 1 / span 2; margin: 0; }
+      .host-stage .reveal-wrap > .reveal-info, .host-stage .reveal-wrap > .judge-panel { grid-column: 2; margin: 0; }
+      .host-stage .hitster-card.big { min-width: 270px; max-width: 270px; height: 270px; padding: 18px 16px; }
+      .host-stage .hitster-card.big::before { width: 310px; height: 310px; right: -140px; bottom: -140px; }
+      .host-stage .hitster-card.big .card-artist { font-size: 1.15rem; }
+      .host-stage .hitster-card.big .card-year { font-size: 5rem; }
+      .host-stage .hitster-card.big .card-title { font-size: 1.2rem; }
+      .host-stage .reveal-info { font-size: 1.1rem; padding: 12px; }
+      /* Op de tv scrollt niemand: tijdlijnen lopen door op een nieuwe regel, met kleinere kaarten */
+      .host-stage .timeline-scroll-container { flex-wrap: wrap; overflow: visible; justify-content: flex-start; padding: 8px 2px; gap: 6px; }
+      .host-stage .timeline-scroll-container .hitster-card { min-width: 92px; max-width: 92px; height: 92px; padding: 6px 5px; border-radius: 10px; }
+      .host-stage .timeline-scroll-container .hitster-card::before { width: 110px; height: 110px; right: -52px; bottom: -52px; }
+      .host-stage .timeline-scroll-container .card-artist { font-size: 0.5rem; }
+      .host-stage .timeline-scroll-container .card-year { font-size: 1.6rem; }
+      .host-stage .timeline-scroll-container .card-title { font-size: 0.55rem; }
+      .host-stage .timeline-scroll-container .timeline-slot-btn { height: 92px; min-width: 30px; font-size: 1.1rem; }
+      .host-stage .host-tl-head { font-size: 1.05rem; }
+      .host-stage .sb-title, .host-stage .host-board-legend { font-size: 0.85rem; }
+      .scoreboard .sb-row { font-size: 0.95rem; }
+      body.host-mode .toasts { width: min(70vw, 760px); }
+      body.host-mode .toast { font-size: 1.35rem; padding: 16px 22px; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
@@ -547,6 +649,8 @@
 </head>
 <body>
   <div id="conn-bar" class="conn-bar hidden">Verbinding weg, opnieuw verbinden…</div>
+  <!-- Meldingen (zonder geluid): ander nummer, spieken -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <header>
     <h1 class="logo" aria-label="Hitster"><span>H</span><span>I</span><span>T</span><span>S</span><span>T</span><span>E</span><span>R</span></h1>
@@ -584,10 +688,13 @@
   </div>
 
   <!-- 3. HOST LOBBY -->
-  <div id="view-host-lobby" class="card hidden" style="max-width: 520px;">
+  <div id="view-host-lobby" class="card hidden">
+   <div class="lobby-top">
     <div class="badge">Lobby Beheer</div>
-    <p style="color: var(--text-dim); font-size: 0.85rem;">Deel deze PIN met spelers:</p>
+    <p style="color: var(--text-dim); font-size: 0.85rem;">Ga naar <strong id="host-join-url" style="color:#fff"></strong> en vul deze PIN in:</p>
     <div id="host-pin-display" class="pin-display">----</div>
+   </div>
+   <div class="lobby-settings">
 
     <div>
       <div class="setting-label">Spelmodus</div>
@@ -623,6 +730,11 @@
     <label class="check-row">
       <input type="checkbox" id="auto-reveal-check" checked onchange="pushSettings()">
       <span>De kaart automatisch onthullen zodra iedereen klaar is (scheelt jou een tik).</span>
+    </label>
+
+    <label class="check-row">
+      <input type="checkbox" id="spiek-check" checked onchange="pushSettings()">
+      <span>👀 Spiekmelding: verlaat een speler tijdens een ronde de app (om het nummer op te zoeken), dan verschijnt dat op het hostscherm. Zonder geluid.</span>
     </label>
 
     <p class="rules-note">🪙 <strong>Fiches:</strong> je begint met 2. Je verdient er 1 met een goed jaartal of een goede titel &amp; artiest. Met 3 fiches kun je een ander nummer laten kiezen (kost 3 fiches).</p>
@@ -673,7 +785,8 @@
       </details>
       <button id="spotify-connect-btn" class="btn btn-spotify" onclick="spotifyConnectClick()">Verbind met Spotify</button>
     </div>
-
+   </div>
+   <div class="lobby-bottom">
 
     <div style="font-size: 0.95rem; font-weight: 800; text-align: left; margin-top: 4px;">Spelers in de lobby:</div>
     <div id="host-lobby-players" style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 40px;"></div>
@@ -682,6 +795,7 @@
     <div id="start-error" class="feedback lose"></div>
     <button class="btn" onclick="hostStartGame()">Start het Spel 🚀</button>
     <button class="link-btn" onclick="closeRoom()">Spel afsluiten</button>
+   </div>
   </div>
 
   <!-- 4. SPELER WACHTRUIMTE -->
@@ -691,6 +805,7 @@
     <div id="waiting-team" class="banner hidden"></div>
     <p id="waiting-sub" style="color: var(--text-dim);">Je zit in de sessie.</p>
     <div id="waiting-host-away" class="feedback lose">De host is even weg… even geduld.</div>
+    <p id="waiting-spiek" class="spiek-note hidden">👀 Spiekmelding staat aan: ga tijdens een ronde niet uit de app, anders ziet iedereen het op het hostscherm.</p>
     <div id="waiting-msg" style="font-size: 1.1rem; color: var(--accent-cyan); margin: 14px 0; font-weight: bold;">
       ⏳ Wachten tot de host het spel start...
     </div>
@@ -698,7 +813,7 @@
   </div>
 
   <!-- 5. HOST SPEL SCHERM -->
-  <div id="view-host-game" class="card hidden" style="max-width: 520px;">
+  <div id="view-host-game" class="card hidden">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <span class="badge">Host Bediening</span>
       <span id="host-submitted-status" style="font-size: 0.85rem; color: var(--accent-gold); font-weight: bold;"></span>
@@ -722,24 +837,26 @@
     </button>
     <button id="host-force-reveal" class="link-btn hidden" onclick="hostReveal()">Toch onthullen</button>
 
-    <div id="host-reveal-box" class="reveal-wrap">
-      <div id="host-reveal-card" class="hitster-card big">
-        <div id="reveal-artist" class="card-artist">-</div>
-        <div id="reveal-year" class="card-year">----</div>
-        <div id="reveal-title" class="card-title">-</div>
+    <!-- Podium: op een groot scherm (tv) staat dit rechts, op een telefoon gewoon hieronder -->
+    <div id="host-stage" class="host-stage">
+      <div id="host-reveal-box" class="reveal-wrap">
+        <div id="host-reveal-card" class="hitster-card big">
+          <div id="reveal-artist" class="card-artist">-</div>
+          <div id="reveal-year" class="card-year">----</div>
+          <div id="reveal-title" class="card-title">-</div>
+        </div>
+        <div id="reveal-exact-info" class="reveal-info"></div>
+        <div id="judge-panel" class="judge-panel hidden"></div>
       </div>
-      <div id="reveal-exact-info" class="reveal-info"></div>
-      <div id="judge-panel" class="judge-panel hidden"></div>
+      <div id="host-teams-board" class="scoreboard hidden">
+        <div class="sb-title">Tijdlijnen van de teams</div>
+        <div class="host-board-legend">📍 = plek van het team aan zet · ⚡ = plek van het team dat inbreekt</div>
+        <div id="host-board-A" class="host-tl"><div id="host-tl-head-A" class="host-tl-head"></div><div id="host-tl-A" class="timeline-scroll-container"></div></div>
+        <div id="host-board-B" class="host-tl"><div id="host-tl-head-B" class="host-tl-head"></div><div id="host-tl-B" class="timeline-scroll-container"></div></div>
+      </div>
     </div>
 
     <button id="host-next-btn" class="btn hidden" onclick="hostFetchAndPlayNext()">Volgend Nummer 🎵</button>
-
-    <div id="host-teams-board" class="scoreboard hidden">
-      <div class="sb-title">Tijdlijnen van de teams</div>
-      <div class="host-board-legend">📍 = plek van het team aan zet · ⚡ = plek van het team dat inbreekt</div>
-      <div id="host-board-A" class="host-tl"><div id="host-tl-head-A" class="host-tl-head"></div><div id="host-tl-A" class="timeline-scroll-container"></div></div>
-      <div id="host-board-B" class="host-tl"><div id="host-tl-head-B" class="host-tl-head"></div><div id="host-tl-B" class="timeline-scroll-container"></div></div>
-    </div>
 
     <div id="host-winner" class="winner-banner hidden"></div>
     <div id="host-scoreboard" class="scoreboard"></div>
@@ -882,7 +999,72 @@
     function showView(id) {
       VIEWS.forEach(v => $(v).classList.add('hidden'));
       $(id).classList.remove('hidden');
+      document.body.classList.toggle('host-mode', id === 'view-host-lobby' || id === 'view-host-game');
+      fitScreen();
     }
+
+    // Hostscherm op een tv of groot scherm: alles evenredig groter maken, zodat het van de bank leesbaar is.
+    // Ontworpen voor ±1300 x 780 beeldpunten; telefoons en tablets van spelers blijven zoals ze zijn.
+    // Past het spel daarna niet in de hoogte (lange tijdlijnen), dan iets kleiner: op de tv scrollt niemand.
+    function fitScreen() {
+      const host = document.body.classList.contains('host-mode');
+      const w = window.innerWidth, h = window.innerHeight;
+      const body = document.body;
+      if (!host || w < 1000) { body.style.zoom = ''; return; }
+      let z = Math.max(1, Math.min(w / 1300, h / 780, 2.5));
+      body.style.zoom = String(z);
+      if (!$('view-host-game').classList.contains('hidden')) {
+        // Onderkant van het spelpaneel (body heeft min-height: 100vh, dus scrollHeight zegt hier niets)
+        const needed = $('view-host-game').getBoundingClientRect().bottom + 14 * z;
+        if (needed > h + 2) z = Math.max(0.7, z * h / needed);
+      }
+      body.style.zoom = String(Math.floor(z * 100) / 100);
+    }
+    let fitTimer = null;
+    window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitScreen, 100); });
+
+    // ---------- Meldingen (zonder geluid) ----------
+    function toast(text, kind, ms) {
+      const box = $('toasts');
+      const el = document.createElement('div');
+      el.className = 'toast ' + (kind || '');
+      el.innerText = text;
+      box.appendChild(el);
+      while (box.children.length > 4) box.removeChild(box.firstChild);
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, ms || 6000);
+    }
+    socket.on('announce', (m) => {
+      if (!m || !m.text) return;
+      if (m.kind === 'swap' && !isHost && ps && m.byPlayerId === ps.playerId) {
+        return toast('🔄 Je zet 3 fiches in: de host zoekt een ander nummer.', 'swap');
+      }
+      const kind = m.kind === 'swap' ? 'swap' : (String(m.kind).startsWith('spiek') ? 'spiek' : '');
+      toast(m.text, kind, m.kind === 'swap' ? 7000 : 6000);
+    });
+
+    // ---------- Spiekmelding (speler) ----------
+    // Gaat de speler tijdens een ronde uit de app, dan krijgt de host een melding. Geen geluid.
+    let spiekAway = false;
+    function spiekRelevant() {
+      return !isHost && ps && ps.spiekOn && ps.state === 'GAME' && ps.phase === 'ACTIVE';
+    }
+    function spiekSend(away) {
+      if (!ps) return;
+      const payload = { pin: ps.pin, playerId: ps.playerId, away };
+      try { if (socket.connected) socket.emit('spiek', payload); } catch (e) {}
+      // Vangnet: telefoons zetten de verbinding soms meteen stil als de app naar de achtergrond gaat
+      if (navigator.sendBeacon) {
+        try { navigator.sendBeacon('/api/spiek', JSON.stringify(payload)); } catch (e) {}
+      }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        if (spiekRelevant()) { spiekAway = true; spiekSend(true); }
+      } else if (spiekAway) {
+        spiekAway = false;
+        spiekSend(false);
+      }
+    });
 
     // =====================================================================
     // SESSIEHERSTEL
@@ -1019,6 +1201,7 @@
       $('guess-title-check').checked = !!st.guessTitle;
       $('guess-year-check').checked = st.guessYear !== false;
       $('auto-reveal-check').checked = st.autoReveal !== false;
+      $('spiek-check').checked = st.spiek !== false;
       hitlibSelect(st.category);
     }
 
@@ -1029,6 +1212,7 @@
         guessTitle: $('guess-title-check').checked,
         guessYear: $('guess-year-check').checked,
         autoReveal: $('auto-reveal-check').checked,
+        spiek: $('spiek-check').checked,
         category: $('category-select').value
       });
     }
@@ -1060,6 +1244,7 @@
       } else {
         showView('view-host-game');
         renderHostGame(hs);
+        fitScreen();
       }
       // Na "Start het Spel" meteen het eerste nummer kiezen
       if (hs.state === 'GAME' && hs.phase === 'IDLE' && pendingAutoStart) {
@@ -1076,6 +1261,7 @@
     function renderHostLobby(s) {
       const teamMode = s.settings.mode === 'teams';
       $('host-pin-display').innerText = s.pin;
+      $('host-join-url').innerText = window.location.host;
       $('mode-solo').classList.toggle('active', !teamMode);
       $('mode-teams').classList.toggle('active', teamMode);
       $('mode-help').innerText = teamMode
@@ -1275,20 +1461,25 @@
     }
     function judge(playerId, approved) { socket.emit('judge_title', { playerId, approved }); }
 
+    function spiekTag(s, playerId) {
+      const e = (s.spiek || []).find(x => x.playerId === playerId);
+      if (!e) return '';
+      return ` <span class="spiek-tag" title="${e.count}x uit de app, ${e.secs} s">👀${e.away ? ' weg' : (e.count > 1 ? '×' + e.count : '')}</span>`;
+    }
     function renderScoreboard(s) {
       const box = $('host-scoreboard');
       const goal = s.settings.target ? ` / ${s.settings.target}` : '';
       if (s.settings.mode === 'teams' && s.teams) {
         box.innerHTML = '<div class="sb-title">Stand</div>' + s.teams.map(t => `
           <div class="sb-row team" style="--tc:${t.color}">
-            <span><span style="color:${t.color}">${esc(t.name)}</span><span class="sub">${t.members.map(m => esc(m.name) + (m.connected ? '' : ' (weg)')).join(', ')}</span></span>
+            <span><span style="color:${t.color}">${esc(t.name)}</span><span class="sub">${t.members.map(m => esc(m.name) + (m.connected ? '' : ' (weg)') + spiekTag(s, m.id)).join(', ')}</span></span>
             <span>${t.count}${goal} kaarten · 🪙${t.tokens}</span>
           </div>`).join('');
       } else {
         const rows = [...s.players].sort((a, b) => b.count - a.count || b.score - a.score);
         box.innerHTML = '<div class="sb-title">Stand</div>' + rows.map(p => `
           <div class="sb-row">
-            <span>${esc(p.name)}${p.connected ? '' : ' <span class="sub" style="display:inline">(weg)</span>'}</span>
+            <span>${esc(p.name)}${p.connected ? '' : ' <span class="sub" style="display:inline">(weg)</span>'}${spiekTag(s, p.id)}</span>
             <span>${p.count}${goal} kaarten · ${p.score}★ · 🪙${p.tokens}</span>
           </div>`).join('');
       }
@@ -1970,6 +2161,7 @@
         ? '⏳ Wachten tot de host het spel start...'
         : '⏳ Wachten tot de host de volgende ronde start...';
       $('waiting-host-away').style.display = s.hostConnected ? 'none' : 'block';
+      setHidden('waiting-spiek', !s.spiekOn);
     }
 
     function fillIfEmpty(id, v) {

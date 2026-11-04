@@ -76,6 +76,21 @@ Hitster-categorieën (zelfde opzet als de familiequiz):
   Render (gratis): een Excel die je in de lobby uploadt, is na een herstart weg.
   Zet wijzigingen daarom in data/ in je GitHub-repo.
 
+Meldingen (zonder geluid):
+  - Zet iemand 3 fiches in voor een ander nummer, dan krijgt iedereen (hostscherm
+    en alle telefoons) een melding.
+  - Spiekmelding (aan/uit in de lobby): gaat een speler tijdens een ronde uit de
+    app, dan verschijnt "👀 <naam> verlaat de app… spieken?" op het hostscherm, en
+    bij terugkomst hoe lang hij weg was. In de stand staat 👀 bij die speler.
+    Spelers zien in de wachtruimte dat de spiekmelding aanstaat.
+
+Schermgrootte:
+  - Telefoon en tablet: kaarten en knoppen passen zich aan (tablet: grotere kaarten).
+  - Groot scherm (laptop aan de tv, vanaf 1000 pixels breed): de host krijgt twee
+    kolommen (links bediening en stand, rechts de uitslagkaart en de tijdlijnen) en
+    alles schaalt mee met het scherm. Past het niet in de hoogte, dan wordt het iets
+    kleiner, zodat niemand hoeft te scrollen. Tip: zet de browser op volledig scherm (F11).
+
 Sessieherstel:
   Wie de pagina ververst of even geen verbinding heeft, komt terug waar hij was
   (ook de host). Via "Spel verlaten" / "Spel afsluiten" ruim je de sessie op.

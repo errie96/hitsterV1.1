@@ -23,6 +23,17 @@ app.get('/api/hitster-library', (req, res) => {
   res.json(libraryPayload());
 });
 
+// Spiekmelding als noodroute: de pagina stuurt dit met sendBeacon als de app naar de achtergrond gaat
+app.post('/api/spiek', express.text({ type: () => true, limit: '2kb' }), (req, res) => {
+  try {
+    const d = JSON.parse(req.body || '{}');
+    const room = rooms[String(d.pin || '')];
+    const player = room ? room.players[d.playerId] : null;
+    if (room && player) handleSpiek(room, player, !!d.away);
+  } catch (e) {}
+  res.status(204).end();
+});
+
 // Alleen een host met een geldige kamer mag een nieuwe Excel uploaden
 app.post('/api/hitster-library', express.raw({ type: () => true, limit: '15mb' }), (req, res) => {
   const room = rooms[String(req.get('x-host-pin') || '')];
@@ -386,6 +397,50 @@ function closeRoom(room, notify) {
   delete rooms[room.pin];
 }
 
+// ---------- Spiekmelding (zonder geluid) ----------
+// Gaat een speler tijdens een ronde uit de app (bijv. om het nummer op te zoeken), dan ziet de host dat.
+function spiekCounts(room, p) {
+  if (room.state !== 'GAME' || room.phase !== 'ACTIVE' || room.swap) return false;
+  if (room.settings.mode === 'teams') {
+    const a = room.active;
+    // Zolang het team aan zet nog moet plaatsen of de tegenstander nog over inbreken beslist
+    return !!(a && !(a.submitted && a.steal.status !== 'pending'));
+  }
+  return !p.submitted;
+}
+
+function handleSpiek(room, p, away) {
+  if (!room.settings.spiek) return;
+  if (!room.spiek || room.spiek.round !== room.round) room.spiek = { round: room.round, list: {} };
+  let e = room.spiek.list[p.id];
+  const now = Date.now();
+  if (away) {
+    if (!spiekCounts(room, p)) return;
+    if (!e) e = room.spiek.list[p.id] = { playerId: p.id, name: p.name, teamId: p.teamId, count: 0, secs: 0, awaySince: null };
+    if (e.awaySince) return;                 // al gemeld (socket én beacon)
+    e.awaySince = now;
+    e.count += 1;
+    notifyHost(room, { kind: 'spiek', text: `👀 ${p.name} verlaat de app… spieken?` });
+  } else {
+    if (!e || !e.awaySince) return;
+    const secs = Math.max(1, Math.round((now - e.awaySince) / 1000));
+    e.secs += secs;
+    e.awaySince = null;
+    notifyHost(room, { kind: 'spiek', text: `👀 ${p.name} is terug (${secs} s weg)` });
+    if (p.connected && p.socketId) io.to(p.socketId).emit('announce', { kind: 'spiek-self', text: '👀 De host heeft gezien dat je even weg was.' });
+  }
+  broadcastState(room);
+}
+
+function notifyHost(room, msg) {
+  if (room.hostConnected && room.hostSocketId) io.to(room.hostSocketId).emit('announce', msg);
+}
+
+function spiekList(room) {
+  if (!room.spiek || room.spiek.round !== room.round) return [];
+  return Object.values(room.spiek.list).map(e => ({ playerId: e.playerId, name: e.name, teamId: e.teamId, count: e.count, secs: e.secs, away: !!e.awaySince }));
+}
+
 // ---------- Uitslag ----------
 function revealSolo(room) {
   const track = room.currentTrack;
@@ -669,6 +724,7 @@ function hostSnapshot(room) {
     teams: teamMode ? teamList(room) : null,
     track: room.phase === 'IDLE' ? null : room.currentTrack,
     used: room.used,   // al gebruikte nummers (startkaarten en gespeeld), zodat de host niets herhaalt
+    spiek: spiekList(room),
     status,
     tr: teamMode && room.active && room.state !== 'LOBBY' ? hostTr(room) : null,
     reveal: room.phase === 'REVEALED' ? publicReveal(room) : null,
@@ -738,6 +794,7 @@ function playerSnapshot(room, p) {
     target: room.settings.target,
     guessTitle: room.settings.guessTitle,
     guessYear: room.settings.guessYear,
+    spiekOn: !!room.settings.spiek,
     state: room.state,
     phase: room.phase,
     round: room.round,
@@ -821,7 +878,7 @@ io.on('connection', (socket) => {
       hostSocketId: socket.id,
       hostConnected: true,
       hostTimer: null,
-      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, autoReveal: true, category: defaultCategory() },
+      settings: { mode: 'solo', target: 10, guessTitle: true, guessYear: true, autoReveal: true, spiek: true, category: defaultCategory() },
       state: 'LOBBY',        // LOBBY | GAME | OVER
       phase: 'IDLE',         // IDLE | ACTIVE | REVEALED
       round: 0,              // telt elk nummer (ook een vervangen nummer); de pagina wist hiermee invoer
@@ -867,6 +924,7 @@ io.on('connection', (socket) => {
     if (typeof s.guessTitle === 'boolean') room.settings.guessTitle = s.guessTitle;
     if (typeof s.guessYear === 'boolean') room.settings.guessYear = s.guessYear;
     if (typeof s.autoReveal === 'boolean') room.settings.autoReveal = s.autoReveal;
+    if (typeof s.spiek === 'boolean') room.settings.spiek = s.spiek;
     if (typeof s.category === 'string') room.settings.category = s.category.slice(0, 80);
     broadcastState(room);
   });
@@ -1058,7 +1116,24 @@ io.on('connection', (socket) => {
     if (room.settings.mode === 'teams') room.teams[room.active.teamId].tokens -= SWAP_COST;
     else player.tokens -= SWAP_COST;
     room.swap = { byPlayerId: player.id, byName: player.name, teamId: player.teamId };
+    const who = room.settings.mode === 'teams' && room.teams ? `${player.name} (${room.teams[player.teamId].name})` : player.name;
+    io.to(room.pin).emit('announce', {
+      kind: 'swap',
+      byPlayerId: player.id,
+      text: `🔄 ${who} zet ${SWAP_COST} fiches in voor een ander nummer!`
+    });
     broadcastState(room);
+  });
+
+  // Spiekmelding: speler gaat uit de app of komt terug. pin + playerId meesturen, want na het
+  // terugkomen kan dit aankomen voordat de verbinding weer aan de speler gekoppeld is.
+  socket.on('spiek', ({ pin, playerId, away } = {}) => {
+    let { room, player } = playerCtx(socket);
+    if (!room) {
+      room = rooms[String(pin || '')];
+      player = room ? room.players[playerId] : null;
+    }
+    if (room && player) handleSpiek(room, player, !!away);
   });
 
   socket.on('submit_turn', (data = {}) => {
