@@ -541,6 +541,14 @@
     .hidden { display: none !important; }
 
     /* ===== V1.2: wachtlijst, bevestiging, grotere bediening op telefoons ===== */
+    .pin-pill {
+      display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 12px; border-radius: 20px;
+      background: rgba(34, 211, 238, 0.12); border: 1px solid rgba(34, 211, 238, 0.55);
+      color: #bdf6ff; font-size: 0.8rem; font-weight: 700;
+    }
+    .pin-pill strong { color: var(--accent-cyan); font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 10px rgba(34, 211, 238, 0.6); }
+    .pin-url { display: none; color: var(--text-dim); font-weight: 600; font-size: 0.72rem; }
+    @media (min-width: 1000px) { .pin-url { display: inline; } }
     .host-waiting { font-size: 0.85rem; font-weight: 700; color: var(--accent-gold); text-align: left; line-height: 1.4; }
     .host-waiting .off { color: #ff8fa3; }
     .submitted-ok {
@@ -838,7 +846,7 @@
   <!-- 5. HOST SPEL SCHERM -->
   <div id="view-host-game" class="card hidden">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span class="badge">Host Bediening</span>
+      <span class="pin-pill" title="Spelers die wegvallen of later komen, kunnen hiermee (weer) meedoen">🔑 PIN <strong id="host-game-pin">----</strong><span id="host-game-url" class="pin-url"></span></span>
       <span id="host-submitted-status" style="font-size: 0.85rem; color: var(--accent-gold); font-weight: bold;"></span>
     </div>
 
@@ -1335,6 +1343,10 @@
       const over = s.state === 'OVER';
 
       syncHostTrack(s.track, s.round);
+
+      // PIN blijft zichtbaar, zodat spelers kunnen terugkomen of later instappen
+      $('host-game-pin').innerText = s.pin;
+      $('host-game-url').innerText = '· ' + window.location.host;
 
       // Status rechtsboven
       let st = '';
