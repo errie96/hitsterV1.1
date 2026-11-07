@@ -119,19 +119,24 @@ function takeFromPool(pool) {
 
 const trackKey = (t) => (String(t.title) + '|' + String(t.artist)).toLowerCase().replace(/\s+/g, ' ').trim();
 
+// Gebruikte nummers: op titel + artiest, en op Spotify-ID als die er is (zelfde nummer, andere schrijfwijze)
 function markUsed(room, track) {
   if (!room) return;
   const key = trackKey(track);
-  if (!room.usedKeys.has(key)) {
-    room.usedKeys.add(key);
-    room.used.push({ title: track.title, artist: track.artist });
-  }
+  const uri = track.uri ? String(track.uri) : '';
+  if (room.usedKeys.has(key) || (uri && room.usedUris.has(uri))) return;
+  room.usedKeys.add(key);
+  if (uri) room.usedUris.add(uri);
+  room.used.push(uri ? { title: track.title, artist: track.artist, uri } : { title: track.title, artist: track.artist });
+}
+function isUsed(room, track) {
+  return room.usedKeys.has(trackKey(track)) || (!!track.uri && room.usedUris.has(String(track.uri)));
 }
 
 // Startkaarten uit de gekozen Hitster-categorie van de Excel (als die er is)
 // Voorkeur: nummers met Startkaart = Ja, dan nummers met een zeker jaartal (geen Jaar check), dan alles
 function startersFromLibrary(room) {
-  const free = hitsterLib.songsFor(room.settings.category).filter(t => !room.usedKeys.has(trackKey(t)));
+  const free = hitsterLib.songsFor(room.settings.category).filter(t => !isUsed(room, t));
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const pools = [free.filter(t => t.start), free.filter(t => !t.check), free];
   let picked = [];
@@ -397,6 +402,54 @@ function closeRoom(room, notify) {
   delete rooms[room.pin];
 }
 
+// ---------- Laatste stap ongedaan maken ----------
+// Vóór elke stap van de host (nieuw nummer, onthullen, titel beoordelen) bewaren we de spelstand.
+// Verbindingen en namen horen er niet bij: wie online is, blijft online.
+const HISTORY_MAX = 15;
+const clone = (o) => (o == null ? o : JSON.parse(JSON.stringify(o)));
+
+function saveHistory(room, kind, label) {
+  room.history.push({
+    kind, label, round: room.round,
+    state: room.state, phase: room.phase, round_: room.round, turn: room.turn,
+    currentTrack: clone(room.currentTrack), active: clone(room.active), swap: clone(room.swap),
+    lastReveal: clone(room.lastReveal), judgements: clone(room.judgements), winner: clone(room.winner),
+    turnIdx: clone(room.turnIdx), teams: clone(room.teams),
+    used: clone(room.used),
+    players: Object.fromEntries(playersOf(room).map(p => [p.id, {
+      timeline: clone(p.timeline), tokens: p.tokens, score: p.score, submitted: p.submitted, guess: clone(p.guess)
+    }]))
+  });
+  if (room.history.length > HISTORY_MAX) room.history.shift();
+}
+
+function restoreHistory(room, h) {
+  clearTimeout(room.revealTimer);
+  room.revealTimer = null;
+  room.state = h.state;
+  room.phase = h.phase;
+  room.round = h.round_;
+  room.turn = h.turn;
+  room.currentTrack = h.currentTrack;
+  room.active = h.active;
+  room.swap = h.swap;
+  room.lastReveal = h.lastReveal;
+  room.judgements = h.judgements || {};
+  room.winner = h.winner;
+  room.turnIdx = h.turnIdx || room.turnIdx;
+  if (h.teams) room.teams = h.teams;
+  room.used = h.used || [];
+  room.usedKeys = new Set(room.used.map(trackKey));
+  room.usedUris = new Set(room.used.filter(t => t.uri).map(t => t.uri));
+  for (const p of playersOf(room)) {
+    const o = h.players[p.id];
+    if (!o) continue;                       // later binnengekomen speler: laten zoals hij is
+    p.timeline = o.timeline; p.tokens = o.tokens; p.score = o.score; p.submitted = o.submitted; p.guess = o.guess;
+  }
+}
+
+const lastHistory = (room) => room.history[room.history.length - 1] || null;
+
 // ---------- Spiekmelding (zonder geluid) ----------
 // Gaat een speler tijdens een ronde uit de app (bijv. om het nummer op te zoeken), dan ziet de host dat.
 function spiekCounts(room, p) {
@@ -654,13 +707,19 @@ function hostTr(room) {
 // Zijn alle acties gedaan? Teams: het team aan zet heeft geplaatst en de tegenstander heeft ingebroken of gepast.
 // Individueel: alle verbonden spelers hebben ingediend.
 function submissionStatus(room) {
+  const who = (p) => ({ name: p.name, connected: p.connected });
   if (room.settings.mode === 'teams') {
     const a = room.active;
-    return { submitted: a && a.submitted ? 1 : 0, total: 1, allReady: !!(a && a.submitted && a.steal.status !== 'pending') };
+    let waiting = [];
+    if (a && !a.submitted && room.players[a.playerId]) waiting = [who(room.players[a.playerId])];
+    else if (a && a.steal.status === 'pending') waiting = teamMembers(room, otherTeam(a.teamId)).map(who);
+    return { submitted: a && a.submitted ? 1 : 0, total: 1, allReady: !!(a && a.submitted && a.steal.status !== 'pending'), waiting };
   }
   const online = connectedPlayers(room);
   const done = online.filter(p => p.submitted).length;
-  return { submitted: done, total: online.length, allReady: online.length > 0 && done === online.length };
+  // Ook spelers die offline zijn en nog niet hebben ingediend, zodat de host weet op wie hij wacht
+  const waiting = playersOf(room).filter(p => !p.submitted).map(who);
+  return { submitted: done, total: online.length, allReady: online.length > 0 && done === online.length, waiting };
 }
 
 // De kaart onthullen (door de host, of vanzelf als alles binnen is)
@@ -669,6 +728,7 @@ function doReveal(room) {
   room.revealTimer = null;
   if (room.state !== 'GAME' || room.phase !== 'ACTIVE' || !room.currentTrack) return false;
 
+  saveHistory(room, 'reveal', `onthulling van ronde ${room.turn}`);
   room.lastReveal = room.settings.mode === 'teams' ? revealTeams(room) : revealSolo(room);
   room.phase = 'REVEALED';
   buildJudgements(room);
@@ -718,12 +778,15 @@ function hostSnapshot(room) {
         score: p.score,
         count: own.timeline.length,
         tokens: own.tokens,
-        submitted: p.submitted
+        submitted: p.submitted,
+        timeline: teamMode ? undefined : p.timeline   // voor het tv-overzicht bij individueel spelen
       };
     }),
     teams: teamMode ? teamList(room) : null,
     track: room.phase === 'IDLE' ? null : room.currentTrack,
     used: room.used,   // al gebruikte nummers (startkaarten en gespeeld), zodat de host niets herhaalt
+    undo: lastHistory(room) ? lastHistory(room).label : null,
+    canFixYear: room.phase === 'REVEALED' && room.history.some(h => h.kind === 'reveal' && h.round === room.round),
     spiek: spiekList(room),
     status,
     tr: teamMode && room.active && room.state !== 'LOBBY' ? hostTr(room) : null,
@@ -895,7 +958,9 @@ io.on('connection', (socket) => {
       winner: null,
       starting: false,
       used: [],              // al gebruikte nummers
-      usedKeys: new Set()
+      usedKeys: new Set(),
+      usedUris: new Set(),
+      history: []            // voor "laatste stap ongedaan maken"
     };
     rooms[pin] = room;
     socketIndex[socket.id] = { pin, role: 'host' };
@@ -970,6 +1035,7 @@ io.on('connection', (socket) => {
     room.turn = 0;
     room.swap = null;
     room.winner = null;
+    room.history = [];
     broadcastState(room);
 
     // Wie tijdens het starten nog binnenkwam, krijgt ook kaarten
@@ -982,15 +1048,18 @@ io.on('connection', (socket) => {
     if (!room || room.state !== 'GAME') return;
     if (!track || !track.title || !track.artist || !Number.isFinite(Number(track.year))) return;
 
+    const year = Math.round(Number(track.year));
+    if (year < 1900 || year > 2100) return;
     clearTimeout(room.revealTimer);
     room.revealTimer = null;
     const isSwap = !!room.swap;
+    saveHistory(room, 'track', isSwap ? 'het andere nummer' : `nieuw nummer (ronde ${room.turn + 1})`);
     const keep = isSwap && room.active ? { teamId: room.active.teamId, playerId: room.active.playerId } : null;
     refundOpenRound(room);
     room.currentTrack = {
       title: String(track.title).slice(0, 200),
       artist: String(track.artist).slice(0, 200),
-      year: Math.round(Number(track.year)),
+      year,
       previewUrl: String(track.previewUrl || '').slice(0, 500),
       uri: String(track.uri || '').slice(0, 100)
     };
@@ -1020,12 +1089,42 @@ io.on('connection', (socket) => {
     if (!room || room.phase !== 'REVEALED') return;
     const j = room.judgements[playerId];
     if (!j || j.status !== 'pending') return;
+    saveHistory(room, 'judge', `beoordeling van ${j.name}`);
     j.status = approved ? 'approved' : 'rejected';
     if (approved) {
       const holder = room.settings.mode === 'teams' ? room.teams[j.teamId] : room.players[playerId];
       if (holder) holder.tokens = Math.min(MAX_TOKENS, holder.tokens + 1);
     }
     broadcastState(room);
+  });
+
+  // Laatste stap van de host terugdraaien
+  socket.on('undo', () => {
+    const room = hostRoom(socket);
+    if (!room || room.state === 'LOBBY') return;
+    const h = room.history.pop();
+    if (!h) return;
+    restoreHistory(room, h);
+    broadcastState(room);
+    io.to(room.pin).emit('announce', { kind: 'undo', text: `↩️ De host heeft de ${h.label} teruggedraaid.` });
+  });
+
+  // Jaartal klopt niet (bijv. remaster in de lijst): uitslag terugdraaien, jaartal aanpassen en opnieuw onthullen
+  socket.on('fix_year', ({ year } = {}) => {
+    const room = hostRoom(socket);
+    const y = Math.round(Number(year));
+    if (!room || (room.phase !== 'REVEALED' && room.state !== 'OVER') || !(y >= 1900 && y <= 2100)) return;
+    // Terug tot vlak vóór de onthulling van deze ronde (beoordelingen daarna vervallen ook)
+    let h;
+    while ((h = lastHistory(room)) && h.kind === 'judge') room.history.pop();
+    h = lastHistory(room);
+    if (!h || h.kind !== 'reveal' || h.round !== room.round) return;
+    room.history.pop();
+    restoreHistory(room, h);
+    const old = room.currentTrack.year;
+    room.currentTrack.year = y;
+    doReveal(room);
+    io.to(room.pin).emit('announce', { kind: 'undo', text: `✏️ Jaartal aangepast: ${old} → ${y}. De uitslag is opnieuw berekend.` });
   });
 
   socket.on('remove_player', ({ playerId } = {}) => {

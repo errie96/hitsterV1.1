@@ -76,6 +76,26 @@ Hitster-categorieën (zelfde opzet als de familiequiz):
   Render (gratis): een Excel die je in de lobby uploadt, is na een herstart weg.
   Zet wijzigingen daarom in data/ in je GitHub-repo.
 
+Nieuw in V1.2 (betrouwbaarheid):
+  - Ongedaan maken: de host kan de laatste stap terugdraaien (nieuw nummer,
+    onthulling of titelbeoordeling), tot 15 stappen terug. Iedereen ziet een melding.
+  - Jaartal aanpassen: klopt een jaartal niet (remaster in de lijst), dan past de
+    host het aan bij de uitslag en rekent het spel de ronde opnieuw uit.
+  - De host ziet op wie hij wacht, ook wie offline is.
+  - Gebruikte nummers worden ook op Spotify-ID bijgehouden (geen dubbele nummers
+    met een andere schrijfwijze).
+  - HITSTER-playlist: maximaal 15 seconden proberen; werkt hij twee keer achter
+    elkaar niet, dan komen de nummers die avond meteen uit de Excel.
+  - Onder de bron staat hoeveel nummers in de categorie al gebruikt zijn en hoeveel
+    er nog over zijn.
+  - Excel-controle: rijen zonder geldig jaartal, zonder titel/artiest of dubbel
+    worden overgeslagen en met rijnummer gemeld in de lobby.
+  - Telefoons: grotere knoppen, grotere fiches, groene bevestiging (en een korte
+    tril) zodra je keuze binnen is.
+  - Tv bij individueel spelen: de tijdlijn van elke speler, met wie al heeft ingediend.
+  - Automatische tests voor de spelregels: npm test (13 tests, geen internet nodig).
+  - Vaste versies van express en socket.io in package.json.
+
 Meldingen (zonder geluid):
   - Zet iemand 3 fiches in voor een ander nummer, dan krijgt iedereen (hostscherm
     en alle telefoons) een melding.

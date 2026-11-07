@@ -169,12 +169,12 @@ function findColumns(rows) {
 
 function parseYear(v) {
   const s = String(v || '').trim();
-  const m = s.match(/(19|20)\d{2}/);
-  if (m) return Number(m[0]);
-  // Excel-datum (getal) als jaartal
+  if (/^\d{4}(\.0+)?$/.test(s)) return Math.round(Number(s));          // gewoon jaartal (ook 2999: dat keurt de controle af)
   const n = Number(s);
-  if (Number.isFinite(n) && n > 1000 && n < 80000) return new Date(Date.UTC(1899, 11, 30) + n * 86400000).getUTCFullYear();
-  return null;
+  // Excel-datum (een dagnummer, bijv. 31-12-1985 = 31412) als jaartal
+  if (Number.isFinite(n) && n >= 10000 && n < 80000) return new Date(Date.UTC(1899, 11, 30) + n * 86400000).getUTCFullYear();
+  const m = s.match(/\b(19|20)\d{2}\b/);
+  return m ? Number(m[0]) : null;
 }
 
 function parsePlaylistsSheet(sheet) {
@@ -207,14 +207,19 @@ function buildLibrary(sheets, fileName) {
     if (!cols) { warnings.push(`Tabblad "${sheet.name}": geen kolommen Titel/Artiest/Jaar gevonden.`); continue; }
     const songs = [];
     const seen = new Set();
+    const maxYear = new Date().getFullYear() + 1;
+    const bad = { year: [], missing: [], dup: [] };   // rijnummers zoals in Excel (1 = eerste rij)
     for (let r = cols.headerRow + 1; r < sheet.rows.length; r++) {
       const row = sheet.rows[r];
       const title = String(row[cols.title] || '').trim();
       const artist = String(row[cols.artist] || '').trim();
-      const year = parseYear(row[cols.year]);
-      if (!title || !artist || !year || year < 1900 || year > 2100) continue;
+      const rawYear = String(row[cols.year] || '').trim();
+      if (!title && !artist && !rawYear) continue;                 // lege rij
+      if (!title || !artist) { bad.missing.push(r + 1); continue; }
+      const year = parseYear(rawYear);
+      if (!year || year < 1900 || year > maxYear) { bad.year.push(r + 1); continue; }
       const key = (title + '|' + artist).toLowerCase();
-      if (seen.has(key)) continue;
+      if (seen.has(key)) { bad.dup.push(r + 1); continue; }
       seen.add(key);
       const song = { title: title.slice(0, 200), artist: artist.slice(0, 200), year };
       const sp = cols.spotify != null ? String(row[cols.spotify] || '').trim() : '';
@@ -224,6 +229,10 @@ function buildLibrary(sheets, fileName) {
       if (cols.check != null && isYes(row[cols.check])) song.check = true;    // jaartal via Spotify controleren
       songs.push(song);
     }
+    const rowsText = (list) => list.slice(0, 6).join(', ') + (list.length > 6 ? ` en nog ${list.length - 6}` : '');
+    if (bad.year.length) warnings.push(`Tabblad "${sheet.name}": ${bad.year.length} rij(en) overgeslagen, geen geldig jaartal (rij ${rowsText(bad.year)}).`);
+    if (bad.missing.length) warnings.push(`Tabblad "${sheet.name}": ${bad.missing.length} rij(en) zonder titel of artiest (rij ${rowsText(bad.missing)}).`);
+    if (bad.dup.length) warnings.push(`Tabblad "${sheet.name}": ${bad.dup.length} dubbel nummer(s) overgeslagen (rij ${rowsText(bad.dup)}).`);
     if (!songs.length) { warnings.push(`Tabblad "${sheet.name}": geen nummers gevonden.`); continue; }
     let id = slug(sheet.name);
     while (categories.some((c) => c.id === id)) id += '-2';
